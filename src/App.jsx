@@ -1,53 +1,73 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   CalendarDays,
-  ChevronRight,
+  Camera,
   Clock3,
+  Home,
   MapPin,
   Scissors,
   ShieldCheck,
-  Sparkles,
   Users,
 } from 'lucide-react'
 import './App.css'
+import jpReelStill from './assets/jp-reel.jpg'
 
 const bookingUrl = 'https://calendly.com/jpcuts/30mins'
+const reelUrl = 'https://www.instagram.com/reel/DX1nfUogdFn/'
 
 const services = [
   {
-    number: '01',
-    name: 'The Cut',
-    detail: '30 minute precision cut',
+    name: 'Chair cut',
+    detail: 'A 30-minute chair for the cut you need.',
     price: '$30',
   },
   {
-    number: '02',
-    name: 'Cut + Beard',
-    detail: 'Clean cut with beard trim',
+    name: 'Cut + beard',
+    detail: 'The same chair with a beard trim added on.',
     price: '$40',
   },
   {
-    number: '03',
-    name: 'House Call',
-    detail: 'Nashville-area mobile cut',
+    name: 'House call',
+    detail: 'JP packs the tools, travels, and cuts on site.',
     price: '$50',
   },
 ]
 
-const bookingNotes = [
-  'Pay after the appointment',
-  'Card-secured no-show policy planned for production booking',
-  'Current preview booking runs through Calendly',
+const scheduleItems = [
+  {
+    icon: MapPin,
+    label: 'Nashville all summer',
+  },
+  {
+    icon: CalendarDays,
+    label: 'Mondays at Lipscomb',
+  },
+  {
+    icon: Scissors,
+    label: 'Faded University + other booking windows',
+  },
 ]
 
-const mobileCuts = [
-  'Team cuts',
-  'Athlete touch-ups',
-  'Weddings',
-  'Church + youth events',
-  'Pop-ups',
-  'House calls',
+const proofSlots = ['Before / after 01', 'Before / after 02']
+
+const brandArc = [
+  {
+    label: 'What you want',
+    text: 'Look ready without chasing down availability every week.',
+  },
+  {
+    label: 'What gets old',
+    text: 'A rushed cut lingers in every photo, practice, class, and workday.',
+  },
+  {
+    label: 'How JP helps',
+    text: 'Book the chair, say what you need, and let JP handle the details.',
+  },
 ]
+
+const planSteps = ['Book 30 minutes', 'Tell JP what you need', 'Leave ready']
+
+const groupCuts = ['Teams', 'Events', 'Weddings', 'Pop-ups', 'House calls', 'Athlete touch-ups']
 
 function App() {
   const heroRef = useRef(null)
@@ -62,7 +82,7 @@ function App() {
 
     const observer = new IntersectionObserver(
       ([entry]) => setShowStickyCta(!entry.isIntersecting),
-      { threshold: 0.15 },
+      { threshold: 0.1 },
     )
 
     observer.observe(hero)
@@ -72,107 +92,144 @@ function App() {
   return (
     <main>
       <section className="hero-section" ref={heroRef}>
-        <nav className="topline" aria-label="Brand">
+        <nav className="topline" aria-label="Primary">
           <a className="logo-lockup" href="#top" aria-label="Numbered home">
             <span className="logo-mark">JPCUTS</span>
-            <span className="logo-divider" aria-hidden="true" />
-            <span className="brand-name">Numbered</span>
+            <span className="brand-name">Numbered Barbering</span>
           </a>
           <a className="nav-book" href={bookingUrl} target="_blank" rel="noreferrer">
             Book
-            <ChevronRight size={16} aria-hidden="true" />
           </a>
         </nav>
 
         <div className="hero-grid" id="top">
           <div className="hero-copy">
-            <p className="eyebrow">Nashville + Smyrna barbering</p>
-            <h1>Every cut has a number.</h1>
+            <p className="verse">Matthew 10:30 - even the hairs of your head are all numbered.</p>
+            <h1>Numbered Barbering</h1>
             <p className="hero-lede">
-              Precision cuts for the weekly rhythm: book it, show up, walk out
-              sharp.
+              Nashville cuts with JP. Book 30 minutes, tell him what you need,
+              and leave ready.
             </p>
             <div className="hero-actions">
               <a className="primary-cta" href={bookingUrl} target="_blank" rel="noreferrer">
-                <CalendarDays size={20} aria-hidden="true" />
-                Book a cut
+                <CalendarDays size={19} aria-hidden="true" />
+                Book a Cut
               </a>
-              <span className="quick-price">$30 / 30 min</span>
+              <span className="quick-note">Summer schedule</span>
             </div>
           </div>
 
-          <div className="number-card" aria-label="Numbered visual identity preview">
-            <div className="tool-rail" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+          <div className="hero-panel" aria-label="Current prices and summer schedule">
+            <figure className="jp-still">
+              <img src={jpReelStill} alt="JP sharing the summer cutting schedule" />
+              <figcaption>JP / summer schedule update</figcaption>
+            </figure>
+            <div className="price-stack" aria-label="Service prices">
+              {services.map((service) => (
+                <article className="price-row" key={service.name}>
+                  <strong>{service.price}</strong>
+                  <span>{service.name}</span>
+                </article>
+              ))}
             </div>
-            <p className="plate-label">Precision</p>
-            <div className="plate-number">30</div>
-            <div className="plate-footer">
-              <span>Cut</span>
-              <span>Nashville</span>
+            <div className="schedule-card">
+              <p className="panel-title">Where JP is cutting</p>
+              <ul>
+                {scheduleItems.map(({ icon: Icon, label }) => (
+                  <li key={label}>
+                    <Icon size={18} aria-hidden="true" />
+                    <span>{label}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="proof-strip" aria-label="Brand positioning">
-        <p>Trusted by athletes who cannot afford a bad week.</p>
-        <span>Team bookings welcome</span>
+      <section className="proof-strip" aria-label="Proof coming soon">
+        <p>Real JP cut photos are coming here. For now, use the summer reel.</p>
+        <a href={reelUrl} target="_blank" rel="noreferrer">
+          <Camera size={18} aria-hidden="true" />
+          Watch the summer reel
+        </a>
       </section>
 
-      <section className="section services-section" aria-labelledby="services-title">
+      <section className="section brand-arc-section" aria-labelledby="arc-title">
         <div className="section-heading">
-          <p className="eyebrow">Services</p>
-          <h2 id="services-title">The menu is the brand.</h2>
+          <p className="section-label">Ready all week</p>
+          <h2 id="arc-title">A cut should make the week easier.</h2>
         </div>
-        <div className="service-list">
-          {services.map((service) => (
-            <article className="service-row" key={service.number}>
-              <span className="service-number">{service.number}</span>
-              <div>
-                <h3>{service.name}</h3>
-                <p>{service.detail}</p>
-              </div>
-              <strong>{service.price}</strong>
+        <div className="arc-grid">
+          {brandArc.map((item) => (
+            <article className="arc-card" key={item.label}>
+              <h3>{item.label}</h3>
+              <p>{item.text}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="section split-section" aria-labelledby="where-title">
-        <div>
-          <p className="eyebrow">Where JP is cutting</p>
-          <h2 id="where-title">Nashville area. Smyrna during school weeks.</h2>
-          <p>
-            The schedule can move with barber school, pop-ups, and mobile calls.
-            The booking link keeps the current appointment window in one place.
-          </p>
+      <section className="section services-section" aria-labelledby="services-title">
+        <div className="section-heading">
+          <p className="section-label">Services</p>
+          <h2 id="services-title">One chair, three clear prices.</h2>
         </div>
-        <div className="info-panel">
-          <div>
-            <MapPin size={22} aria-hidden="true" />
-            <span>Nashville, TN area</span>
-          </div>
-          <div>
-            <Scissors size={22} aria-hidden="true" />
-            <span>Smyrna barber school</span>
-          </div>
-          <div>
-            <Clock3 size={22} aria-hidden="true" />
-            <span>30 minute main appointment</span>
-          </div>
+        <div className="service-list">
+          {services.map((service) => (
+            <article className="service-row" key={service.name}>
+              <strong>{service.price}</strong>
+              <div>
+                <h3>{service.name}</h3>
+                <p>{service.detail}</p>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="section events-section" aria-labelledby="events-title">
+      <section className="section plan-section" aria-labelledby="plan-title">
+        <div>
+          <p className="section-label">The plan</p>
+          <h2 id="plan-title">Book. Tell. Leave ready.</h2>
+        </div>
+        <ol className="plan-list">
+          {planSteps.map((step, index) => (
+            <li key={step}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="section media-section" aria-labelledby="proof-title">
         <div className="section-heading">
-          <p className="eyebrow">Mobile cuts</p>
-          <h2 id="events-title">One chair. Whole room handled.</h2>
+          <p className="section-label">Proof</p>
+          <h2 id="proof-title">No fake barber photos.</h2>
+        </div>
+        <div className="proof-grid">
+          {proofSlots.map((slot) => (
+            <div className="proof-placeholder" key={slot}>
+              <span>{slot}</span>
+              <p>Real photo placeholder</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section split-section" aria-labelledby="group-title">
+        <div>
+          <p className="section-label">Teams + events</p>
+          <h2 id="group-title">Need JP on site?</h2>
+          <p>
+            House calls are $50 because JP brings the setup and travels. For teams,
+            pop-ups, weddings, and youth events, start with the booking link and
+            share the details.
+          </p>
         </div>
         <div className="tag-grid">
-          {mobileCuts.map((item) => (
+          {groupCuts.map((item) => (
             <span key={item}>{item}</span>
           ))}
         </div>
@@ -180,32 +237,37 @@ function App() {
 
       <section className="section booking-section" aria-labelledby="booking-title">
         <div className="booking-copy">
-          <p className="eyebrow">Booking policy</p>
-          <h2 id="booking-title">Simple now. Stricter when payments go live.</h2>
+          <p className="section-label">Booking</p>
+          <h2 id="booking-title">Pick the chair time.</h2>
           <p>
-            For the preview, booking sends people to Calendly. The production
-            path should use Square Appointments or another PCI-compliant booking
-            provider before card-secured no-show fees are advertised as active.
+            JP is in Nashville all summer, cuts Mondays at Lipscomb, and uses
+            Faded University or other appointment windows through the booking link.
           </p>
         </div>
         <ul className="booking-notes" aria-label="Booking notes">
-          {bookingNotes.map((note) => (
-            <li key={note}>
-              <ShieldCheck size={18} aria-hidden="true" />
-              {note}
-            </li>
-          ))}
+          <li>
+            <Clock3 size={18} aria-hidden="true" />
+            30-minute chair
+          </li>
+          <li>
+            <Home size={18} aria-hidden="true" />
+            $50 house call
+          </li>
+          <li>
+            <ShieldCheck size={18} aria-hidden="true" />
+            Beard is a $10 add-on
+          </li>
         </ul>
       </section>
 
       <section className="final-cta" aria-labelledby="final-title">
         <div>
-          <Sparkles size={24} aria-hidden="true" />
-          <h2 id="final-title">Book the next cut.</h2>
-          <p>30 minutes. $30. Keep the schedule clean.</p>
+          <Users size={24} aria-hidden="true" />
+          <h2 id="final-title">Book a Cut</h2>
+          <p>$30 chair cut. $40 with beard. $50 house call.</p>
         </div>
         <a className="primary-cta" href={bookingUrl} target="_blank" rel="noreferrer">
-          <Users size={20} aria-hidden="true" />
+          <CalendarDays size={19} aria-hidden="true" />
           Book JP
         </a>
       </section>
@@ -216,8 +278,8 @@ function App() {
         target="_blank"
         rel="noreferrer"
       >
-        <CalendarDays size={19} aria-hidden="true" />
-        Book - $30 / 30 min
+        <CalendarDays size={18} aria-hidden="true" />
+        Book a Cut
       </a>
     </main>
   )
