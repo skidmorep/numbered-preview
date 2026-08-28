@@ -5,15 +5,20 @@ const baseUrl = process.env.NUMBERED_PREVIEW_URL
 const email = process.env.NUMBERED_OWNER_EMAIL
 const password = process.env.NUMBERED_OWNER_PASSWORD
 const videoPath = process.env.NUMBERED_TEST_VIDEO
+const previewUsername = process.env.NUMBERED_PREVIEW_USERNAME || 'preview'
+const previewPassword = process.env.NUMBERED_PREVIEW_PASSWORD
 
-if (!baseUrl || !email || !password || !videoPath) throw new Error('Missing editor test environment')
+if (!baseUrl || !email || !password || !videoPath || !previewPassword) throw new Error('Missing editor test environment')
 
 async function main() {
   const browser = await chromium.launch({
     executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true,
   })
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+  const page = await browser.newPage({
+    viewport: { width: 1280, height: 900 },
+    httpCredentials: { username: previewUsername, password: previewPassword },
+  })
 
   try {
     await page.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' })

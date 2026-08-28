@@ -4,6 +4,9 @@ const path = require('node:path')
 
 const baseUrl = process.env.NUMBERED_PREVIEW_URL || 'http://127.0.0.1:8791'
 const outputDir = process.env.NUMBERED_PROOF_DIR || path.resolve('proof')
+const previewUsername = process.env.NUMBERED_PREVIEW_USERNAME || 'preview'
+const previewPassword = process.env.NUMBERED_PREVIEW_PASSWORD
+const httpCredentials = previewPassword ? { username: previewUsername, password: previewPassword } : undefined
 const skins = ['cut-record', 'jp-in-chair', 'open-chair']
 const viewports = [
   { name: 'mobile', width: 390, height: 844 },
@@ -22,7 +25,7 @@ async function main() {
 
   try {
     for (const viewport of viewports) {
-      const page = await browser.newPage({ viewport })
+      const page = await browser.newPage({ viewport, httpCredentials })
       for (const skin of skins) {
         const response = await page.goto(`${baseUrl}/?skin=${skin}`, { waitUntil: 'domcontentloaded' })
         await page.locator('.photo img').first().waitFor({ state: 'visible' })
@@ -49,7 +52,7 @@ async function main() {
       await page.close()
     }
 
-    const admin = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    const admin = await browser.newPage({ viewport: { width: 390, height: 844 }, httpCredentials })
     const adminResponse = await admin.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' })
     await admin.getByRole('heading', { name: 'Sign in to edit' }).waitFor()
     const adminText = await admin.locator('body').innerText()

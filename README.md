@@ -1,6 +1,6 @@
 # Numbered / JP Cutz preview
 
-A public, no-index design preview with one shared content model and three switchable skins:
+A password-protected, no-index design preview with one shared content model and three switchable skins:
 
 1. The Cut Record
 2. JP in the Chair
@@ -13,6 +13,7 @@ Editor: <https://numbered-preview-dev.skidmore.workers.dev/admin/>
 ## Architecture
 
 - React and Vite render the public site and editor.
+- HTTP Basic Auth protects the complete preview origin, including direct content and media URLs.
 - One content record drives all three skins.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
 - D1 stores users, sessions, current content, and revision history.
@@ -28,6 +29,8 @@ npm run build
 wrangler dev
 ```
 
+Set `PREVIEW_PASSWORD` in `.dev.vars` before local Worker testing. Production stores it as a Cloudflare Worker secret. The preview username is `preview`.
+
 Run the release checks:
 
 ```sh
@@ -36,6 +39,8 @@ npm test
 npm run build
 node scripts/visual-check.cjs
 ```
+
+Remote visual and editor checks require `NUMBERED_PREVIEW_PASSWORD`. The editor check also requires the existing owner credentials and test-video path.
 
 ## Content and media rules
 
@@ -52,4 +57,4 @@ The bundled haircut photographs came from JP's public Booksy listing for concept
 
 ## Account handoff
 
-The owner account is `skidmore@parabolos.com`. Its password is stored in the local macOS Passwords/Keychain entry for `numbered-preview-dev.skidmore.workers.dev`. The owner can add JP from the editor after JP's email is confirmed. New editors must change their temporary password before publishing.
+The shared preview username is `preview`; its password is stored separately in the local macOS Passwords/Keychain entry for `numbered-preview-dev.skidmore.workers.dev`. The owner account is `skidmore@parabolos.com`, with a separate password stored in the same secret store. The owner can add JP from the editor after JP's email is confirmed. New editors must change their temporary password before publishing.

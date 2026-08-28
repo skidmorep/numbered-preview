@@ -1,5 +1,7 @@
 const SESSION_COOKIE = '__Host-numbered_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+const DEFAULT_PREVIEW_USERNAME = 'preview'
+const PREVIEW_REALM = 'Numbered preview'
 // Cloudflare Workers caps PBKDF2 at 100,000 iterations.
 const PASSWORD_ITERATIONS = 100000
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
@@ -27,6 +29,8 @@ export async function handleRequest(request, env) {
   const url = new URL(request.url)
 
   try {
+    const previewGate = await requirePreviewAccess(request, env)
+    if (previewGate) return finalize(previewGate)
     if (request.method === 'OPTIONS') return finalize(new Response(null, { status: 204 }))
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/uploads/')) {
       return finalize(await serveMedia(request, env, url.pathname.slice('/uploads/'.length)))
@@ -48,12 +52,51 @@ export async function handleRequest(request, env) {
 
     if (routes[route]) return finalize(await routes[route]())
     if (url.pathname.startsWith('/api/')) return finalize(json({ error: 'Not found' }, 404))
-    return finalize(await env.ASSETS.fetch(request))
+    const assetRequest = new Request(request)
+    assetRequest.headers.delete('authorization')
+    return finalize(await env.ASSETS.fetch(assetRequest))
   } catch (error) {
     if (error instanceof Response) return finalize(error)
     console.error('numbered-preview request failed', error?.name || 'Error', error?.message || '', error?.stack || '')
     return finalize(json({ error: 'Internal server error' }, 500))
   }
+}
+
+async function requirePreviewAccess(request, env) {
+  const expectedPassword = String(env.PREVIEW_PASSWORD || '')
+  if (!expectedPassword) {
+    return json({ error: 'Preview access is not configured' }, 503, { 'cache-control': 'no-store' })
+  }
+
+  const authorization = request.headers.get('authorization') || ''
+  const match = /^Basic\s+([^\s]+)$/i.exec(authorization)
+  if (!match) return previewUnauthorized()
+
+  let decoded
+  try { decoded = atob(match[1]) }
+  catch { return previewUnauthorized() }
+  const separator = decoded.indexOf(':')
+  if (separator < 0) return previewUnauthorized()
+
+  const username = decoded.slice(0, separator)
+  const password = decoded.slice(separator + 1)
+  const expectedUsername = String(env.PREVIEW_USERNAME || DEFAULT_PREVIEW_USERNAME)
+  const [usernameMatches, passwordMatches] = await Promise.all([
+    credentialEqual(username, expectedUsername),
+    credentialEqual(password, expectedPassword),
+  ])
+  return usernameMatches && passwordMatches ? null : previewUnauthorized()
+}
+
+function previewUnauthorized() {
+  return new Response('Preview sign-in required', {
+    status: 401,
+    headers: {
+      'cache-control': 'no-store',
+      'content-type': 'text/plain; charset=utf-8',
+      'www-authenticate': `Basic realm="${PREVIEW_REALM}", charset="UTF-8"`,
+    },
+  })
 }
 
 async function getPublicContent(env) {
@@ -440,6 +483,10 @@ async function verifyPassword(password, encoded) {
   } catch { return false }
 }
 async function sha256Base64(value) { return toBase64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))) }
+async function credentialEqual(left, right) {
+  const [leftDigest, rightDigest] = await Promise.all([sha256Base64(left), sha256Base64(right)])
+  return constantTimeEqual(leftDigest, rightDigest)
+}
 async function constantTimeEqual(left, right) {
   const a = new TextEncoder().encode(left)
   const b = new TextEncoder().encode(right)

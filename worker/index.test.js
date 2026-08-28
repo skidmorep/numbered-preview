@@ -3,6 +3,15 @@ import test from 'node:test'
 import { defaultContent } from '../src/siteContent.js'
 import { detectMediaType, handleRequest, parseByteRange, validateContent } from './index.js'
 
+const PREVIEW_PASSWORD = 'test-preview-password'
+const basicAuth = (credentials) => `Basic ${globalThis.btoa(credentials)}`
+const previewAuth = basicAuth(`preview:${PREVIEW_PASSWORD}`)
+const previewEnv = (overrides = {}) => ({
+  PREVIEW_USERNAME: 'preview',
+  PREVIEW_PASSWORD,
+  ...overrides,
+})
+
 test('bundled content passes the Worker validation contract', () => {
   assert.equal(validateContent(structuredClone(defaultContent)), true)
 })
@@ -60,9 +69,52 @@ test('single byte ranges support full, open-ended, and suffix requests', () => {
   assert.equal(parseByteRange('items=0-3', 100), null)
 })
 
-test('public content endpoint safely returns bundled-fallback state and security headers', async () => {
-  const env = { DB: { prepare: () => ({ first: async () => null }) } }
-  const response = await handleRequest(new Request('https://numbered.test/api/content'), env)
+test('preview gate fails closed across pages, assets, APIs, and media before routing', async () => {
+  const paths = ['/', '/assets/index-abc123.js', '/api/content', '/uploads/example.jpg', '/admin/']
+  const rejectedCredentials = [
+    { name: 'no header', authorization: null },
+    { name: 'malformed header', authorization: 'Basic !!!' },
+    { name: 'wrong username', authorization: basicAuth(`someone:${PREVIEW_PASSWORD}`) },
+    { name: 'wrong password', authorization: basicAuth('preview:wrong') },
+  ]
+
+  for (const path of paths) {
+    const unconfiguredBindings = untouchedBindings()
+    const unconfigured = await handleRequest(new Request(`https://numbered.test${path}`, {
+      headers: { authorization: previewAuth },
+    }), unconfiguredBindings.env)
+    assert.equal(unconfigured.status, 503, `${path} must fail closed without a secret`)
+    assert.equal(unconfigured.headers.get('cache-control'), 'no-store')
+    assert.deepEqual(unconfiguredBindings.calls, { assets: 0, db: 0, media: 0 })
+
+    for (const scenario of rejectedCredentials) {
+      const bindings = untouchedBindings()
+      const headers = scenario.authorization ? { authorization: scenario.authorization } : {}
+      const response = await handleRequest(new Request(`https://numbered.test${path}`, { headers }), {
+        ...bindings.env,
+        PREVIEW_USERNAME: 'preview',
+        PREVIEW_PASSWORD,
+      })
+      assert.equal(response.status, 401, `${path} must reject ${scenario.name}`)
+      assert.match(response.headers.get('www-authenticate'), /^Basic /)
+      assert.equal(response.headers.get('cache-control'), 'no-store')
+      assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
+    }
+  }
+
+  const allowedBindings = untouchedBindings()
+  const allowed = await handleRequest(new Request('https://numbered.test/', {
+    headers: { authorization: previewAuth },
+  }), previewEnv(allowedBindings.env))
+  assert.equal(allowed.status, 200)
+  assert.deepEqual(allowedBindings.calls, { assets: 1, db: 0, media: 0 })
+})
+
+test('authorized content endpoint safely returns bundled-fallback state and security headers', async () => {
+  const env = previewEnv({ DB: { prepare: () => ({ first: async () => null }) } })
+  const response = await handleRequest(new Request('https://numbered.test/api/content', {
+    headers: { authorization: previewAuth },
+  }), env)
   const body = await response.json()
 
   assert.equal(response.status, 200)
@@ -74,22 +126,39 @@ test('public content endpoint safely returns bundled-fallback state and security
 })
 
 test('admin routes reject missing sessions and cross-origin mutations before parsing bodies', async () => {
-  const unauthorized = await handleRequest(new Request('https://numbered.test/api/admin/content'), {})
+  const unauthorized = await handleRequest(new Request('https://numbered.test/api/admin/content', {
+    headers: { authorization: previewAuth },
+  }), previewEnv())
   assert.equal(unauthorized.status, 401)
 
   const crossOrigin = await handleRequest(new Request('https://numbered.test/api/setup', {
     method: 'POST',
-    headers: { origin: 'https://evil.example', 'content-type': 'application/json' },
+    headers: { authorization: previewAuth, origin: 'https://evil.example', 'content-type': 'application/json' },
     body: '{not-json',
-  }), {})
+  }), previewEnv())
   assert.equal(crossOrigin.status, 403)
 
   const upload = await handleRequest(new Request('https://numbered.test/api/admin/media', {
     method: 'POST',
-    headers: { origin: 'https://numbered.test' },
-  }), {})
+    headers: { authorization: previewAuth, origin: 'https://numbered.test' },
+  }), previewEnv())
   assert.equal(upload.status, 401)
 })
+
+function untouchedBindings() {
+  const calls = { assets: 0, db: 0, media: 0 }
+  return {
+    calls,
+    env: {
+      ASSETS: { fetch: async () => { calls.assets += 1; return new Response('site') } },
+      DB: { prepare: () => { calls.db += 1; throw new Error('DB binding must not be touched') } },
+      MEDIA: {
+        head: async () => { calls.media += 1; throw new Error('MEDIA binding must not be touched') },
+        get: async () => { calls.media += 1; throw new Error('MEDIA binding must not be touched') },
+      },
+    },
+  }
+}
 
 function assertResponseError(action, status) {
   assert.throws(action, (error) => error instanceof Response && error.status === status)
