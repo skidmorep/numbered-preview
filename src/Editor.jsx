@@ -250,25 +250,25 @@ function MediaPreview({ label, asset }) {
 }
 
 function OwnerAccess({ setStatus }) {
-  const createEditor = async (event) => {
+  const createOwner = async (event) => {
     event.preventDefault()
     const form = event.currentTarget
-    setStatus('Creating editor account…')
+    setStatus('Creating owner account…')
     try {
       const payload = await api('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify({
           email: form.email.value,
           tempPassword: form.tempPassword.value,
-          role: 'editor',
+          role: 'owner',
         }),
       })
-      setStatus(`Editor account created for ${payload.user.email}. Share the temporary password privately.`)
+      setStatus(`Owner account created for ${payload.user.email}. Share the temporary password privately.`)
       form.reset()
     } catch (error) { setStatus(error.message) }
   }
 
-  return <EditorSection title="Editor access" description="Add JP after his email is confirmed. New editors must change their temporary password before they can publish."><form className="owner-access" onSubmit={createEditor}><Field name="email" label="JP's email" type="email" autoComplete="off" required /><Field name="tempPassword" label="Temporary password (12–128 characters)" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /><button type="submit">Create editor account</button></form></EditorSection>
+  return <EditorSection title="Owner access" description="JP receives the same access as paul. New owners must change their temporary password before they can view or publish the preview."><form className="owner-access" onSubmit={createOwner}><Field name="email" label="JP's email" type="email" autoComplete="off" required /><Field name="tempPassword" label="Temporary password (12–128 characters)" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /><button type="submit">Create owner account</button></form></EditorSection>
 }
 
 function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-mark">JP</span><b>JPCUTS / NUMBERED</b></div>{children}</main> }

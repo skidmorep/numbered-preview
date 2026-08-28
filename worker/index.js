@@ -1,7 +1,5 @@
 const SESSION_COOKIE = '__Host-numbered_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
-const DEFAULT_PREVIEW_USERNAME = 'preview'
-const PREVIEW_REALM = 'Numbered preview'
 // Cloudflare Workers caps PBKDF2 at 100,000 iterations.
 const PASSWORD_ITERATIONS = 100000
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
@@ -29,16 +27,14 @@ export async function handleRequest(request, env) {
   const url = new URL(request.url)
 
   try {
-    const previewGate = await requirePreviewAccess(request, env)
-    if (previewGate) return finalize(previewGate)
     if (request.method === 'OPTIONS') return finalize(new Response(null, { status: 204 }))
-    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/uploads/')) {
-      return finalize(await serveMedia(request, env, url.pathname.slice('/uploads/'.length)))
-    }
-
     const route = `${request.method} ${url.pathname.replace(/\/$/, '') || '/'}`
     const routes = {
-      'GET /api/content': () => getPublicContent(env),
+      'GET /login': () => loginPage(),
+      'POST /login': () => browserLogin(request, env),
+      'GET /claim': () => claimPage(),
+      'POST /claim': () => claimPassword(request, env),
+      'GET /api/content': () => getPublicContent(request, env),
       'POST /api/setup': () => setup(request, env),
       'POST /api/login': () => login(request, env),
       'POST /api/change-password': () => changePassword(request, env),
@@ -52,6 +48,16 @@ export async function handleRequest(request, env) {
 
     if (routes[route]) return finalize(await routes[route]())
     if (url.pathname.startsWith('/api/')) return finalize(json({ error: 'Not found' }, 404))
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/uploads/')) {
+      await requireSession(request, env)
+      return finalize(await serveMedia(request, env, url.pathname.slice('/uploads/'.length)))
+    }
+
+    const auth = await sessionOrLoginPage(request, env)
+    if (auth instanceof Response) return finalize(auth)
+    if (auth.user.force_password_change && !url.pathname.startsWith('/admin')) {
+      return finalize(new Response(null, { status: 302, headers: { location: '/admin/' } }))
+    }
     const assetRequest = new Request(request)
     assetRequest.headers.delete('authorization')
     return finalize(await env.ASSETS.fetch(assetRequest))
@@ -62,44 +68,17 @@ export async function handleRequest(request, env) {
   }
 }
 
-async function requirePreviewAccess(request, env) {
-  const expectedPassword = String(env.PREVIEW_PASSWORD || '')
-  if (!expectedPassword) {
-    return json({ error: 'Preview access is not configured' }, 503, { 'cache-control': 'no-store' })
+async function sessionOrLoginPage(request, env) {
+  try { return await requireSession(request, env, { allowForced: true }) }
+  catch (error) {
+    if (!(error instanceof Response) || error.status !== 401) throw error
+    if (request.method !== 'GET' && request.method !== 'HEAD') return error
+    return loginPage()
   }
-
-  const authorization = request.headers.get('authorization') || ''
-  const match = /^Basic\s+([^\s]+)$/i.exec(authorization)
-  if (!match) return previewUnauthorized()
-
-  let decoded
-  try { decoded = atob(match[1]) }
-  catch { return previewUnauthorized() }
-  const separator = decoded.indexOf(':')
-  if (separator < 0) return previewUnauthorized()
-
-  const username = decoded.slice(0, separator)
-  const password = decoded.slice(separator + 1)
-  const expectedUsername = String(env.PREVIEW_USERNAME || DEFAULT_PREVIEW_USERNAME)
-  const [usernameMatches, passwordMatches] = await Promise.all([
-    credentialEqual(username, expectedUsername),
-    credentialEqual(password, expectedPassword),
-  ])
-  return usernameMatches && passwordMatches ? null : previewUnauthorized()
 }
 
-function previewUnauthorized() {
-  return new Response('Preview sign-in required', {
-    status: 401,
-    headers: {
-      'cache-control': 'no-store',
-      'content-type': 'text/plain; charset=utf-8',
-      'www-authenticate': `Basic realm="${PREVIEW_REALM}", charset="UTF-8"`,
-    },
-  })
-}
-
-async function getPublicContent(env) {
+async function getPublicContent(request, env) {
+  await requireSession(request, env)
   const state = await readSiteState(env)
   return json({ content: state?.content || null, revision: state?.revision || 0 }, 200, { 'cache-control': 'no-store' })
 }
@@ -129,6 +108,11 @@ async function login(request, env) {
   const body = await readJson(request, 4_000)
   const identifier = String(body.email || body.username || '').trim().toLowerCase()
   const password = String(body.password || '')
+  const authenticated = await authenticate(request, env, identifier, password)
+  return json({ ok: true, user: publicUser(authenticated.user) }, 200, { 'set-cookie': sessionCookie(authenticated.token, SESSION_TTL_SECONDS) })
+}
+
+async function authenticate(request, env, identifier, password) {
   if (!identifier || !password) throw responseError('Email and password are required', 400)
   if (password.length > 128) throw responseError('Invalid credentials', 401)
 
@@ -141,13 +125,82 @@ async function login(request, env) {
   }
 
   await env.DB.prepare('delete from login_attempts where key = ?').bind(attemptKey).run()
+  return createSession(env, user)
+}
+
+async function createSession(env, user) {
   const token = randomToken()
   const tokenHash = await sha256Base64(token)
   const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1000).toISOString()
   await env.DB.prepare(
     'insert into admin_sessions (id, user_id, token_hash, expires_at, created_at) values (?, ?, ?, ?, ?)',
   ).bind(crypto.randomUUID(), user.id, tokenHash, expiresAt, nowIso()).run()
-  return json({ ok: true, user: publicUser(user) }, 200, { 'set-cookie': sessionCookie(token, SESSION_TTL_SECONDS) })
+  return { token, user }
+}
+
+async function browserLogin(request, env) {
+  assertMutationOrigin(request)
+  try {
+    const form = await readForm(request, 4_000)
+    const identifier = String(form.get('identifier') || '').trim().toLowerCase()
+    const password = String(form.get('password') || '')
+    const authenticated = await authenticate(request, env, identifier, password)
+    const destination = authenticated.user.force_password_change ? '/admin/' : '/'
+    return new Response(null, {
+      status: 303,
+      headers: { location: destination, 'set-cookie': sessionCookie(authenticated.token, SESSION_TTL_SECONDS) },
+    })
+  } catch (error) {
+    if (!(error instanceof Response)) throw error
+    const message = await error.json().then((body) => body.error).catch(() => 'Sign-in failed')
+    return loginPage(message, error.status)
+  }
+}
+
+async function claimPassword(request, env) {
+  assertMutationOrigin(request)
+  try {
+    const form = await readForm(request, 5_000)
+    const token = String(form.get('code') || '').trim()
+    const password = requirePassword(form.get('password'))
+    if (password !== String(form.get('confirmation') || '')) throw responseError('Passwords do not match', 400)
+    if (token.length < 32 || token.length > 256) throw responseError('That setup code is invalid or expired', 401)
+
+    const tokenHash = await sha256Base64(token)
+    const now = nowIso()
+    const invite = await env.DB.prepare(
+      `select i.id, i.user_id, u.id as matched_user_id, u.disabled
+        from password_invites i join admin_users u on u.id = i.user_id
+        where i.token_hash = ? and i.used_at is null and i.expires_at > ? limit 1`,
+    ).bind(tokenHash, now).first()
+    if (!invite || invite.disabled || invite.user_id !== invite.matched_user_id) {
+      throw responseError('That setup code is invalid or expired', 401)
+    }
+
+    const used = await env.DB.prepare(
+      'update password_invites set used_at = ? where id = ? and used_at is null',
+    ).bind(now, invite.id).run()
+    if (used.meta?.changes !== 1) throw responseError('That setup code is invalid or expired', 401)
+
+    await env.DB.prepare(
+      'update admin_users set password_hash = ?, force_password_change = 0, updated_at = ? where id = ?',
+    ).bind(await hashPassword(password), now, invite.user_id).run()
+    await env.DB.prepare('delete from admin_sessions where user_id = ?').bind(invite.user_id).run()
+    const user = await env.DB.prepare(
+      'select id, username, email, password_hash, role, force_password_change, disabled from admin_users where id = ? limit 1',
+    ).bind(invite.user_id).first()
+    if (!user || user.disabled) throw responseError('This account is unavailable', 403)
+
+    const authenticated = await createSession(env, user)
+    return new Response(null, {
+      status: 303,
+      headers: { location: '/', 'set-cookie': sessionCookie(authenticated.token, SESSION_TTL_SECONDS) },
+    })
+  } catch (error) {
+    if (!(error instanceof Response)) throw error
+    const message = await error.json().then((body) => body.error).catch(() => 'Password setup failed')
+    return claimPage(message, error.status)
+  }
 }
 
 async function changePassword(request, env) {
@@ -443,6 +496,18 @@ async function readJson(request, maxBytes) {
   catch { throw responseError('Invalid JSON body', 400) }
 }
 
+async function readForm(request, maxBytes) {
+  const declared = Number(request.headers.get('content-length') || 0)
+  if (declared > maxBytes) throw responseError('Request is too large', 413)
+  const contentType = request.headers.get('content-type') || ''
+  if (!contentType.toLowerCase().startsWith('application/x-www-form-urlencoded')) {
+    throw responseError('Invalid form submission', 415)
+  }
+  const text = await request.text()
+  if (new TextEncoder().encode(text).byteLength > maxBytes) throw responseError('Request is too large', 413)
+  return new URLSearchParams(text)
+}
+
 async function requireSetupToken(candidate, env) {
   if (!env.SETUP_TOKEN) throw responseError('Setup is disabled', 503)
   if (!candidate || !(await constantTimeEqual(String(candidate), String(env.SETUP_TOKEN)))) throw responseError('Invalid setup token', 401)
@@ -483,10 +548,6 @@ async function verifyPassword(password, encoded) {
   } catch { return false }
 }
 async function sha256Base64(value) { return toBase64(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)))) }
-async function credentialEqual(left, right) {
-  const [leftDigest, rightDigest] = await Promise.all([sha256Base64(left), sha256Base64(right)])
-  return constantTimeEqual(leftDigest, rightDigest)
-}
 async function constantTimeEqual(left, right) {
   const a = new TextEncoder().encode(left)
   const b = new TextEncoder().encode(right)
@@ -500,8 +561,33 @@ function fromBase64(value) { const normalized = value.replace(/-/g, '+').replace
 
 function responseError(message, status) { return json({ error: message }, status) }
 function json(body, status = 200, extraHeaders = {}) { return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...extraHeaders } }) }
+function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]) }
+function authPage({ eyebrow, title, intro, action, fields, error = '', status = 200, footer = '' }) {
+  const errorBlock = error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''
+  return new Response(`<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — Numbered</title>
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.67rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.78rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}.error{padding:11px 12px;border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015;font-weight:750}.footer{font-size:.75rem}.footer a{color:#40372f;font-weight:800}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${fields}<button type="submit">${escapeHtml(action)}</button>${footer ? `<p class="footer">${footer}</p>` : ''}</form></main></body></html>`, {
+    status,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+  })
+}
+function loginPage(error = '', status = 200) {
+  return authPage({
+    eyebrow: 'Private preview', title: 'Sign in', intro: 'Use your Numbered login and password.', action: 'Sign in', error, status,
+    fields: '<label class="field"><span>Login</span><input name="identifier" autocomplete="username" required></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>',
+    footer: 'Have a one-time setup code? <a href="/claim/">Choose your password</a>.',
+  })
+}
+function claimPage(error = '', status = 200) {
+  return authPage({
+    eyebrow: 'Private setup', title: 'Choose your password', intro: 'Enter the one-time code sent to you privately. The code expires after use.', action: 'Set password and sign in', error, status,
+    fields: '<label class="field"><span>One-time setup code</span><input name="code" autocomplete="one-time-code" minlength="32" maxlength="256" required></label><label class="field"><span>New password</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label class="field"><span>Confirm password</span><input name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>',
+    footer: '<a href="/login/">Return to sign in</a>.',
+  })
+}
 function finalize(response) {
   const headers = new Headers(response.headers)
+  if (response.status === 401 || response.status === 403) headers.set('cache-control', 'no-store')
   headers.set('x-content-type-options', 'nosniff')
   headers.set('referrer-policy', 'strict-origin-when-cross-origin')
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()')

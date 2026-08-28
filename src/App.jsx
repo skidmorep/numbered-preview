@@ -20,6 +20,10 @@ function App() {
       signal: controller.signal,
     })
       .then((response) => {
+        if (response.status === 401) {
+          window.location.replace('/login/')
+          throw new DOMException('Authentication required', 'AbortError')
+        }
         if (!response.ok) throw new Error('Content service unavailable')
         return response.json()
       })
