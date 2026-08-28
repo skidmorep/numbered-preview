@@ -47,7 +47,17 @@ export function PublicSite({ content, contentStatus }) {
       {skin === 'cut-record' && <CutRecordSkin content={content} />}
       {skin === 'jp-in-chair' && <JpInChairSkin content={content} />}
       {skin === 'open-chair' && <OpenChairSkin content={content} />}
+      <MobileBookingBar content={content} />
     </div>
+  )
+}
+
+function MobileBookingBar({ content }) {
+  return (
+    <aside className="n-mobile-book" aria-label="Quick booking">
+      <div><span>Current range</span><b>{content.facts.priceRange}</b></div>
+      <ExternalButton href={content.booking.url}>Book with JP</ExternalButton>
+    </aside>
   )
 }
 
