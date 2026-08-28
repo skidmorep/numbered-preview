@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import './site.css'
+import './public-mobile.css'
 import { defaultContent, mergeContent } from './siteContent'
-import { PublicSite } from './PublicSite'
+import { PublicSite } from './PublicSiteMobile'
 import { Editor } from './Editor'
 
 function App() {

@@ -169,7 +169,6 @@ export function Editor({ defaults }) {
               <Field label="Event button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
               <Field label="Event link (https, sms, tel, or mailto)" value={content.events.actionUrl} onChange={(value) => update('events.actionUrl', value)} maxLength={500} />
               <Field label="Instagram URL" type="url" value={content.contact.instagramUrl} onChange={(value) => update('contact.instagramUrl', value)} maxLength={500} />
-              <Field label="Public phone" value={content.contact.phone} onChange={(value) => update('contact.phone', value)} maxLength={40} />
             </div>
           </EditorSection>
           {user?.role === 'owner' && <OwnerAccess setStatus={setStatus} />}

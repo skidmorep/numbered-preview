@@ -15,6 +15,7 @@ Editor: <https://numbered-preview-dev.skidmore.workers.dev/admin/>
 - React and Vite render the public site and editor.
 - HTTP Basic Auth protects the complete preview origin, including direct content and media URLs.
 - One content record drives all three skins.
+- The public layouts are mobile-first; the design switcher collapses to one compact control on phones.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
 - D1 stores users, sessions, current content, and revision history.
 - A private R2 bucket stores uploaded images and videos; the Worker validates and serves them.
@@ -45,6 +46,8 @@ Remote visual and editor checks require `NUMBERED_PREVIEW_PASSWORD`. The editor 
 ## Content and media rules
 
 - The editor supports shared copy, services, booking/event links, the three creative headlines, hero and portrait images, nine gallery slots, one uploaded video, and one featured Instagram reel.
+- Instagram reels use a clean poster that opens Instagram. An uploaded featured video plays natively without Instagram's feed interface.
+- The public preview omits JP's phone number; event inquiries use the configured web link.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.
 - Videos must be MP4 or WebM and no larger than 15 MB.
 - Images require alt text before upload.

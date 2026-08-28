@@ -14,6 +14,8 @@ const previewEnv = (overrides = {}) => ({
 
 test('bundled content passes the Worker validation contract', () => {
   assert.equal(validateContent(structuredClone(defaultContent)), true)
+  assert.equal(defaultContent.contact.phone, '')
+  assert.match(defaultContent.events.actionUrl, /^https:\/\//)
 })
 
 test('content validation rejects unsafe URLs, markup, excess galleries, and missing alt text', async (t) => {

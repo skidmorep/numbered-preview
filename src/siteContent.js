@@ -8,7 +8,7 @@ export const defaultContent = {
   version: 1,
   revision: 0,
   brand: {
-    publicName: 'JPCUTS / NUMBERED',
+    publicName: 'NUMBERED / JP CUTZ',
     bridgeName: 'Cuts by JP',
     verseQuote: 'Even the hairs of your head are all numbered.',
     verseReference: 'Matthew 10:30',
@@ -17,8 +17,8 @@ export const defaultContent = {
     eyebrow: 'Nashville barber · Mobile service available',
     headlines: {
       cutRecord: 'Look sharp. No guesswork.',
-      jpInChair: 'The chair is open.',
-      openChair: 'Need a cut? Start here.',
+      jpInChair: 'JP in the chair',
+      openChair: 'The open chair',
     },
     intro: 'Book JP for a clean cut in Nashville, with mobile service when the week calls for it.',
   },
@@ -63,7 +63,7 @@ export const defaultContent = {
     type: 'instagram',
     heading: 'From JP',
     url: 'https://www.instagram.com/reel/DX1nfUogdFn/',
-    posterUrl: '/media/defaults/jp-portrait.webp',
+    posterUrl: '/media/defaults/jp-cut-02.webp',
   },
   story: {
     heading: 'Details matter because people do.',
@@ -73,11 +73,11 @@ export const defaultContent = {
     enabled: true,
     heading: 'Bring JP to the room.',
     body: 'Teams, weddings, pop-ups, church and youth events, and group cuts deserve a scoped conversation about date, headcount, location, and travel.',
-    actionLabel: 'Start an event inquiry',
-    actionUrl: 'sms:+12067353553',
+    actionLabel: 'Ask about an event',
+    actionUrl: 'https://www.instagram.com/cutzby.jp/',
   },
   contact: {
-    phone: '+1 206-735-3553',
+    phone: '',
     instagramUrl: 'https://www.instagram.com/cutzby.jp/',
   },
   settings: {
