@@ -1,0 +1,22 @@
+name = "numbered-preview-dev"
+main = "worker/index.js"
+compatibility_date = "2026-01-28"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+[vars]
+INITIAL_ADMIN_EMAIL = "skidmore@parabolos.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "numbered-preview-dev-db"
+database_id = "d9484bc8-f95c-41e1-af34-ff3345bffa2f"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "numbered-preview-dev-media"

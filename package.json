@@ -7,6 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test": "node --test worker/*.test.js",
+    "cf:dev": "npm run build && wrangler dev",
+    "cf:migrate:local": "wrangler d1 migrations apply numbered-preview-dev-db --local",
+    "cf:migrate:remote": "wrangler d1 migrations apply numbered-preview-dev-db --remote",
+    "cf:deploy": "npm run build && wrangler deploy",
     "preview": "vite preview"
   },
   "dependencies": {
