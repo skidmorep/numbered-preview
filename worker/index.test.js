@@ -73,7 +73,7 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     assert.equal(response.status, 200)
     assert.match(response.headers.get('content-type'), /^text\/html/)
     assert.match(html, /Private preview/)
-    assert.match(html, /Use your Numbered login and password/)
+    assert.match(html, /Sign in with your email address and password/)
     assert.doesNotMatch(html, /email.{0,20}(?:OTP|code)/i)
     assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
   }
@@ -85,6 +85,22 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     assert.equal(response.headers.get('cache-control'), 'no-store')
     assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
   }
+})
+
+test('login exposes a usable forgot-password path backed by the one-time code flow', async () => {
+  const login = await handleRequest(new Request('https://numbered.test/login/'), untouchedBindings().env)
+  const loginHtml = await login.text()
+  assert.equal(login.status, 200)
+  assert.match(loginHtml, /href="\/forgot-password\/"/)
+  assert.match(loginHtml, /Forgot password\?/)
+
+  const recovery = await handleRequest(new Request('https://numbered.test/forgot-password/'), untouchedBindings().env)
+  const recoveryHtml = await recovery.text()
+  assert.equal(recovery.status, 200)
+  assert.match(recoveryHtml, /Reset your password/)
+  assert.match(recoveryHtml, /one-time recovery code/i)
+  assert.match(recoveryHtml, /name="code"/)
+  assert.match(recoveryHtml, /autocomplete="new-password"/)
 })
 
 test('authenticated content endpoint safely returns bundled-fallback state and security headers', async () => {
@@ -113,6 +129,13 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   }), untouchedBindings().env)
   assert.equal(crossOrigin.status, 403)
 
+  const crossOriginRecovery = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+    method: 'POST',
+    headers: { origin: 'https://evil.example', 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'code=not-a-real-code',
+  }), untouchedBindings().env)
+  assert.equal(crossOriginRecovery.status, 403)
+
   const upload = await handleRequest(new Request('https://numbered.test/api/admin/media', {
     method: 'POST',
     headers: { origin: 'https://numbered.test' },
@@ -120,25 +143,28 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   assert.equal(upload.status, 401)
 })
 
-test('one-time owner setup chooses a password, consumes the code, and creates a normal session', async () => {
+test('one-time recovery chooses a password, revokes sessions, and requires a fresh login', async () => {
   const env = inviteEnv()
   const body = new URLSearchParams({
     code: 'one-time-private-setup-code-with-entropy-1234567890',
     password: 'a-private-password-123',
     confirmation: 'a-private-password-123',
   })
-  const claimed = await handleRequest(new Request('https://numbered.test/claim/', {
+  const claimed = await handleRequest(new Request('https://numbered.test/forgot-password/', {
     method: 'POST',
     headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
     body,
   }), env)
 
   assert.equal(claimed.status, 303)
-  assert.equal(claimed.headers.get('location'), '/')
-  assert.match(claimed.headers.get('set-cookie'), /^__Host-numbered_session=/)
+  assert.equal(claimed.headers.get('location'), '/login/?reset=1')
+  assert.equal(claimed.headers.get('set-cookie'), null)
   assert.equal(env.state.inviteUsed, true)
   assert.match(env.state.passwordHash, /^pbkdf2-sha256\$100000\$/)
-  assert.equal(env.state.sessionCount, 1)
+  assert.equal(env.state.sessionCount, 0)
+
+  const freshLoginPage = await handleRequest(new Request('https://numbered.test/login/?reset=1'), untouchedBindings().env)
+  assert.match(await freshLoginPage.text(), /Password saved\. Sign in with it now\./)
 
   const replayed = await handleRequest(new Request('https://numbered.test/claim/', {
     method: 'POST',
@@ -159,7 +185,8 @@ test('one-time owner setup chooses a password, consumes the code, and creates a 
   }), env)
   assert.equal(loginResponse.status, 200)
   assert.equal((await loginResponse.json()).user.role, 'owner')
-  assert.equal(env.state.sessionCount, 2)
+  assert.match(loginResponse.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Strict/)
+  assert.equal(env.state.sessionCount, 1)
 })
 
 function authenticatedEnv() {
@@ -198,6 +225,9 @@ function inviteEnv() {
     ASSETS: { fetch: async () => new Response('site') },
     MEDIA: { head: async () => null, get: async () => null },
     DB: {
+      async batch(statements) {
+        return Promise.all(statements.map((statement) => statement.run()))
+      },
       prepare(sql) {
         let values = []
         return {
@@ -213,11 +243,14 @@ function inviteEnv() {
           },
           async run() {
             if (sql.startsWith('update password_invites')) {
-              if (state.inviteUsed) return { meta: { changes: 0 } }
-              state.inviteUsed = true
+              if (sql.includes('where id = ? and used_at is null')) {
+                if (state.inviteUsed) return { meta: { changes: 0 } }
+                state.inviteUsed = true
+              }
               return { meta: { changes: 1 } }
             }
             if (sql.startsWith('update admin_users set password_hash')) state.passwordHash = values[0]
+            if (sql.startsWith('delete from admin_sessions')) state.sessionCount = 0
             if (sql.startsWith('insert into admin_sessions')) state.sessionCount += 1
             return { meta: { changes: 1 } }
           },

@@ -13,7 +13,7 @@ Editor: <https://numbered-preview-dev.skidmore.workers.dev/admin/>
 ## Architecture
 
 - React and Vite render the public site and editor.
-- HTTP Basic Auth protects the complete preview origin, including direct content and media URLs.
+- D1-backed email/password sessions protect the complete preview origin, including direct content and media URLs.
 - One content record drives all three skins.
 - The public layouts are mobile-first; the design switcher collapses to one compact control on phones.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
@@ -30,8 +30,6 @@ npm run build
 wrangler dev
 ```
 
-Set `PREVIEW_PASSWORD` in `.dev.vars` before local Worker testing. Production stores it as a Cloudflare Worker secret. The preview username is `preview`.
-
 Run the release checks:
 
 ```sh
@@ -41,7 +39,7 @@ npm run build
 node scripts/visual-check.cjs
 ```
 
-Remote visual and editor checks require `NUMBERED_PREVIEW_PASSWORD`. The editor check also requires the existing owner credentials and test-video path.
+Remote visual and editor checks require an owner session or the existing owner credentials and test-video path.
 
 ## Content and media rules
 
@@ -58,6 +56,11 @@ Remote visual and editor checks require `NUMBERED_PREVIEW_PASSWORD`. The editor 
 
 The bundled haircut photographs came from JP's public Booksy listing for concept work. Confirm permission and replace them with JP's approved files before a production launch.
 
-## Account handoff
+## Account handoff and recovery
 
-The shared preview username is `preview`; its password is stored separately in the local macOS Passwords/Keychain entry for `numbered-preview-dev.skidmore.workers.dev`. The owner account is `skidmore@parabolos.com`, with a separate password stored in the same secret store. The owner can add JP from the editor after JP's email is confirmed. New editors must change their temporary password before publishing.
+- Owners sign in with their email address and password.
+- The login screen links to `/forgot-password/` for first-time setup and password recovery.
+- Recovery uses a private, single-use code rather than email OTP. An administrator issues the code for one exact account and delivers it through an approved private secret-sharing path.
+- Codes are stored only as hashes, expire after 24 hours, and become invalid after use.
+- A successful reset revokes existing sessions and older unused codes. The user must then complete a fresh login; the setup session is not accepted as login proof.
+- The owner can add another owner from the editor after confirming the person's email address.

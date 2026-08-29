@@ -152,7 +152,8 @@
 .auth-card { width: min(100%, 440px); display: grid; gap: 16px; padding: 28px; border: 1px solid #cec4b7; background: #fffaf2; box-shadow: 0 18px 60px rgba(35,26,18,.1); }
 .auth-card h1 { margin: 0; font-size: 2rem; }
 .auth-card p { margin: 0; color: #6d6257; }
-.auth-card > a { color: #4c433a; font-size: .8rem; font-weight: 700; }
+.auth-card > a { min-height: 44px; display: inline-flex; align-items: center; color: #4c433a; font-size: .875rem; font-weight: 700; }
+.editor-auth :is(input,button,a):focus-visible { outline: 3px solid #2474c6; outline-offset: 3px; }
 .editor-kicker { margin: 0; color: var(--red) !important; font-size: .68rem; font-weight: 900; letter-spacing: .13em; text-transform: uppercase; }
 .editor-app { min-height: 100vh; padding-bottom: 84px; color: #171513; background: #eee8dd; }
 .editor-header { min-height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 14px clamp(18px, 3vw, 42px); border-bottom: 1px solid #cec4b7; background: #fffaf2; }

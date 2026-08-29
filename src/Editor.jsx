@@ -192,7 +192,7 @@ function Login({ onSuccess }) {
       onSuccess(payload.user)
     } catch (error) { setStatus(error.message) }
   }
-  return <EditorFrame><form className="auth-card" onSubmit={submit}><p className="editor-kicker">Numbered preview</p><h1>Sign in to edit</h1><Field name="email" label="Email" type="email" autoComplete="username" required /><Field name="password" label="Password" type="password" autoComplete="current-password" required /><button className="publish-button" type="submit">Sign in</button><p role="status">{status}</p><a href="/">Return to preview</a></form></EditorFrame>
+  return <EditorFrame><form className="auth-card" onSubmit={submit}><p className="editor-kicker">Numbered preview</p><h1>Sign in to edit</h1><Field name="email" label="Email" type="email" autoComplete="username" required /><Field name="password" label="Password" type="password" autoComplete="current-password" required /><a href="/forgot-password/">Forgot password?</a><button className="publish-button" type="submit">Sign in</button><p role="status">{status}</p><a href="/">Return to preview</a></form></EditorFrame>
 }
 
 function PasswordChange({ user, onSuccess }) {

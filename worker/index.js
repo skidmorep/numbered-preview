@@ -30,10 +30,12 @@ export async function handleRequest(request, env) {
     if (request.method === 'OPTIONS') return finalize(new Response(null, { status: 204 }))
     const route = `${request.method} ${url.pathname.replace(/\/$/, '') || '/'}`
     const routes = {
-      'GET /login': () => loginPage(),
+      'GET /login': () => loginPage('', 200, url.searchParams.get('reset') === '1' ? 'Password saved. Sign in with it now.' : ''),
       'POST /login': () => browserLogin(request, env),
       'GET /claim': () => claimPage(),
       'POST /claim': () => claimPassword(request, env),
+      'GET /forgot-password': () => claimPage(),
+      'POST /forgot-password': () => claimPassword(request, env),
       'GET /api/content': () => getPublicContent(request, env),
       'POST /api/setup': () => setup(request, env),
       'POST /api/login': () => login(request, env),
@@ -177,24 +179,33 @@ async function claimPassword(request, env) {
       throw responseError('That setup code is invalid or expired', 401)
     }
 
-    const used = await env.DB.prepare(
-      'update password_invites set used_at = ? where id = ? and used_at is null',
-    ).bind(now, invite.id).run()
-    if (used.meta?.changes !== 1) throw responseError('That setup code is invalid or expired', 401)
-
-    await env.DB.prepare(
-      'update admin_users set password_hash = ?, force_password_change = 0, updated_at = ? where id = ?',
-    ).bind(await hashPassword(password), now, invite.user_id).run()
-    await env.DB.prepare('delete from admin_sessions where user_id = ?').bind(invite.user_id).run()
-    const user = await env.DB.prepare(
-      'select id, username, email, password_hash, role, force_password_change, disabled from admin_users where id = ? limit 1',
-    ).bind(invite.user_id).first()
-    if (!user || user.disabled) throw responseError('This account is unavailable', 403)
-
-    const authenticated = await createSession(env, user)
+    const usedMarker = `${now}#${crypto.randomUUID()}`
+    const passwordHash = await hashPassword(password)
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        'update password_invites set used_at = ? where id = ? and used_at is null',
+      ).bind(usedMarker, invite.id),
+      env.DB.prepare(
+        `update admin_users set password_hash = ?, force_password_change = 0, updated_at = ?
+          where id = ? and disabled = 0 and exists (
+            select 1 from password_invites where id = ? and user_id = ? and used_at = ?
+          )`,
+      ).bind(passwordHash, now, invite.user_id, invite.id, invite.user_id, usedMarker),
+      env.DB.prepare(
+        `delete from admin_sessions where user_id = ? and exists (
+          select 1 from password_invites where id = ? and user_id = ? and used_at = ?
+        )`,
+      ).bind(invite.user_id, invite.id, invite.user_id, usedMarker),
+      env.DB.prepare(
+        'update password_invites set used_at = ? where user_id = ? and id != ? and used_at is null',
+      ).bind(usedMarker, invite.user_id, invite.id),
+    ])
+    if (results[0]?.meta?.changes !== 1 || results[1]?.meta?.changes !== 1) {
+      throw responseError('That recovery code is invalid or expired', 401)
+    }
     return new Response(null, {
       status: 303,
-      headers: { location: '/', 'set-cookie': sessionCookie(authenticated.token, SESSION_TTL_SECONDS) },
+      headers: { location: '/login/?reset=1' },
     })
   } catch (error) {
     if (!(error instanceof Response)) throw error
@@ -562,26 +573,27 @@ function fromBase64(value) { const normalized = value.replace(/-/g, '+').replace
 function responseError(message, status) { return json({ error: message }, status) }
 function json(body, status = 200, extraHeaders = {}) { return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...extraHeaders } }) }
 function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]) }
-function authPage({ eyebrow, title, intro, action, fields, error = '', status = 200, footer = '' }) {
+function authPage({ eyebrow, title, intro, action, fields, error = '', notice = '', status = 200, footer = '' }) {
   const errorBlock = error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''
+  const noticeBlock = notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ''
   return new Response(`<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — Numbered</title>
-<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.67rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.78rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}.error{padding:11px 12px;border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015;font-weight:750}.footer{font-size:.75rem}.footer a{color:#40372f;font-weight:800}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${fields}<button type="submit">${escapeHtml(action)}</button>${footer ? `<p class="footer">${footer}</p>` : ''}</form></main></body></html>`, {
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}<button type="submit">${escapeHtml(action)}</button>${footer ? `<p class="footer">${footer}</p>` : ''}</form></main></body></html>`, {
     status,
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
   })
 }
-function loginPage(error = '', status = 200) {
+function loginPage(error = '', status = 200, notice = '') {
   return authPage({
-    eyebrow: 'Private preview', title: 'Sign in', intro: 'Use your Numbered login and password.', action: 'Sign in', error, status,
-    fields: '<label class="field"><span>Login</span><input name="identifier" autocomplete="username" required></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>',
-    footer: 'Have a one-time setup code? <a href="/claim/">Choose your password</a>.',
+    eyebrow: 'Private preview', title: 'Sign in', intro: 'Sign in with your email address and password.', action: 'Sign in', error, notice, status,
+    fields: '<label class="field"><span>Email or username</span><input name="identifier" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>',
+    footer: '<a href="/forgot-password/">Forgot password?</a>',
   })
 }
 function claimPage(error = '', status = 200) {
   return authPage({
-    eyebrow: 'Private setup', title: 'Choose your password', intro: 'Enter the one-time code sent to you privately. The code expires after use.', action: 'Set password and sign in', error, status,
-    fields: '<label class="field"><span>One-time setup code</span><input name="code" autocomplete="one-time-code" minlength="32" maxlength="256" required></label><label class="field"><span>New password</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label class="field"><span>Confirm password</span><input name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>',
+    eyebrow: 'Private recovery', title: 'Reset your password', intro: 'This preview uses private recovery codes instead of email. Ask the site administrator for a one-time code, then enter it below.', action: 'Save password', error, status,
+    fields: '<label class="field"><span>One-time recovery code</span><input name="code" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" minlength="32" maxlength="256" required></label><label class="field"><span>New password (12–128 characters)</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><label class="field"><span>Confirm password</span><input name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>',
     footer: '<a href="/login/">Return to sign in</a>.',
   })
 }
