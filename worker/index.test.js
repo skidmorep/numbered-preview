@@ -87,7 +87,7 @@ test('unauthenticated visitors receive only the login shell while APIs and media
   }
 })
 
-test('login exposes a usable forgot-password path backed by the one-time code flow', async () => {
+test('login exposes an emailed forgot-password flow without account disclosure', async () => {
   const login = await handleRequest(new Request('https://numbered.test/login/'), untouchedBindings().env)
   const loginHtml = await login.text()
   assert.equal(login.status, 200)
@@ -98,9 +98,76 @@ test('login exposes a usable forgot-password path backed by the one-time code fl
   const recoveryHtml = await recovery.text()
   assert.equal(recovery.status, 200)
   assert.match(recoveryHtml, /Reset your password/)
-  assert.match(recoveryHtml, /one-time recovery code/i)
-  assert.match(recoveryHtml, /name="code"/)
-  assert.match(recoveryHtml, /autocomplete="new-password"/)
+  assert.match(recoveryHtml, /name="email"/)
+  assert.match(recoveryHtml, /type="email"/)
+  assert.doesNotMatch(recoveryHtml, /name="code"/)
+
+  const bindings = resetRequestEnv()
+  const pending = []
+  const requested = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': '203.0.113.7' },
+    body: new URLSearchParams({ email: 'skidmore@parabolos.com' }),
+  }), bindings.env, { waitUntil(promise) { pending.push(promise) } })
+  const requestedHtml = await requested.text()
+  assert.equal(requested.status, 200)
+  assert.match(requestedHtml, /If an account exists for that address/)
+  assert.doesNotMatch(requestedHtml, /skidmore@parabolos\.com/)
+  await Promise.all(pending)
+  assert.equal(bindings.state.sent.length, 1)
+  assert.match(bindings.state.sent[0].text, /\/reset-password\/#token=[A-Za-z0-9_-]{40,}/)
+  assert.doesNotMatch(bindings.state.sent[0].text, /\?token=/)
+  assert.equal(bindings.state.invites.length, 1)
+  assert.doesNotMatch(bindings.state.invites[0].tokenHash, /[./]/)
+
+  const repeatPending = []
+  const repeated = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': '203.0.113.7' },
+    body: new URLSearchParams({ email: 'skidmore@parabolos.com' }),
+  }), bindings.env, { waitUntil(promise) { repeatPending.push(promise) } })
+  assert.equal(await repeated.text(), requestedHtml)
+  await Promise.all(repeatPending)
+  assert.equal(bindings.state.sent.length, 1)
+  assert.equal(bindings.state.invites.length, 1)
+
+  const missingBindings = resetRequestEnv({ userExists: false })
+  const missingPending = []
+  const missing = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': '203.0.113.8' },
+    body: new URLSearchParams({ email: 'missing@example.com' }),
+  }), missingBindings.env, { waitUntil(promise) { missingPending.push(promise) } })
+  assert.equal(missing.status, requested.status)
+  assert.equal(await missing.text(), requestedHtml)
+  await Promise.all(missingPending)
+  assert.equal(missingBindings.state.sent.length, 0)
+})
+
+test('reset links keep tokens out of requests and response HTML', async () => {
+  const page = await handleRequest(new Request('https://numbered.test/reset-password/'), untouchedBindings().env)
+  const html = await page.text()
+  assert.equal(page.status, 200)
+  assert.match(html, /Choose a new password/)
+  assert.match(html, /name="code" type="hidden"/)
+  assert.match(html, /src="\/reset-password-script\.js"/)
+  assert.equal(page.headers.get('referrer-policy'), 'no-referrer')
+
+  const script = await handleRequest(new Request('https://numbered.test/reset-password-script.js'), untouchedBindings().env)
+  const javascript = await script.text()
+  assert.equal(script.status, 200)
+  assert.match(javascript, /location\.hash/)
+  assert.match(javascript, /history\.replaceState/)
+  assert.equal(script.headers.get('cache-control'), 'no-store')
+
+  const secret = 'never-echo-this-reset-token-12345678901234567890'
+  const invalid = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: secret, password: 'short', confirmation: 'short' }),
+  }), inviteEnv())
+  assert.equal(invalid.status, 400)
+  assert.doesNotMatch(await invalid.text(), new RegExp(secret))
 })
 
 test('authenticated content endpoint safely returns bundled-fallback state and security headers', async () => {
@@ -129,7 +196,7 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   }), untouchedBindings().env)
   assert.equal(crossOrigin.status, 403)
 
-  const crossOriginRecovery = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+  const crossOriginRecovery = await handleRequest(new Request('https://numbered.test/reset-password/', {
     method: 'POST',
     headers: { origin: 'https://evil.example', 'content-type': 'application/x-www-form-urlencoded' },
     body: 'code=not-a-real-code',
@@ -143,14 +210,14 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   assert.equal(upload.status, 401)
 })
 
-test('one-time recovery chooses a password, revokes sessions, and requires a fresh login', async () => {
+test('one-time emailed recovery chooses a password, revokes sessions, and requires a fresh login', async () => {
   const env = inviteEnv()
   const body = new URLSearchParams({
     code: 'one-time-private-setup-code-with-entropy-1234567890',
     password: 'a-private-password-123',
     confirmation: 'a-private-password-123',
   })
-  const claimed = await handleRequest(new Request('https://numbered.test/forgot-password/', {
+  const claimed = await handleRequest(new Request('https://numbered.test/reset-password/', {
     method: 'POST',
     headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
     body,
@@ -212,6 +279,47 @@ function authenticatedEnv() {
       },
     },
   }
+}
+
+function resetRequestEnv({ userExists = true } = {}) {
+  const state = { sent: [], invites: [], limits: new Map() }
+  const user = {
+    id: 'owner-1', username: 'skidmore@parabolos.com', email: 'skidmore@parabolos.com',
+    password_hash: 'unused', role: 'owner', force_password_change: 1, disabled: 0,
+  }
+  const env = {
+    PUBLIC_ORIGIN: 'https://numbered.test',
+    RESET_EMAIL_FROM: 'Numbered <numbered@parabolos.com>',
+    EMAIL_TRANSPORT: {
+      async send(message) { state.sent.push(message); return { sent: true, id: 'email-1' } },
+    },
+    ASSETS: { fetch: async () => new Response('site') },
+    MEDIA: { head: async () => null, get: async () => null },
+    DB: {
+      async batch(statements) { return Promise.all(statements.map((statement) => statement.run())) },
+      prepare(sql) {
+        let values = []
+        return {
+          bind(...nextValues) { values = nextValues; return this },
+          async first() {
+            if (sql.includes('from password_reset_limits')) return state.limits.get(values[0]) || null
+            if (sql.includes('from admin_users where lower')) return userExists ? user : null
+            throw new Error(`Unexpected query: ${sql}`)
+          },
+          async run() {
+            if (sql.startsWith('insert into password_reset_limits')) {
+              state.limits.set(values[0], { attempts: values[1], window_started: values[2], last_requested_at: values[3] })
+            }
+            if (sql.startsWith('insert into password_invites')) {
+              state.invites.push({ id: values[0], userId: values[1], tokenHash: values[2], expiresAt: values[3] })
+            }
+            return { meta: { changes: 1 } }
+          },
+        }
+      },
+    },
+  }
+  return { env, state }
 }
 
 function inviteEnv() {

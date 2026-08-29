@@ -18,6 +18,7 @@ Editor: <https://numbered-preview-dev.skidmore.workers.dev/admin/>
 - The public layouts are mobile-first; the design switcher collapses to one compact control on phones.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
 - D1 stores users, sessions, current content, and revision history.
+- Resend sends password-reset links from the verified `parabolos.com` domain. Its API key is a Worker secret and is never stored in source.
 - A private R2 bucket stores uploaded images and videos; the Worker validates and serves them.
 - Booking remains with the selected hosted booking provider. This app does not store card data or manage availability.
 
@@ -59,8 +60,18 @@ The bundled haircut photographs came from JP's public Booksy listing for concept
 ## Account handoff and recovery
 
 - Owners sign in with their email address and password.
-- The login screen links to `/forgot-password/` for first-time setup and password recovery.
-- Recovery uses a private, single-use code rather than email OTP. An administrator issues the code for one exact account and delivers it through an approved private secret-sharing path.
-- Codes are stored only as hashes, expire after 24 hours, and become invalid after use.
-- A successful reset revokes existing sessions and older unused codes. The user must then complete a fresh login; the setup session is not accepted as login proof.
+- The login screen links to `/forgot-password/`, where the user requests a reset link by email. Normal sign-in never uses email OTP.
+- The public response does not reveal whether an account exists. Requests are throttled by hashed email and IP keys.
+- Reset links expire after 30 minutes and work once. The raw token stays in the URL fragment, is moved into the reset form in the browser, and is never sent in a GET request or stored in D1.
+- D1 stores only the token hash. A successful reset atomically consumes the token, revokes existing sessions, and invalidates older unused tokens.
+- The user must complete a fresh login after resetting the password.
+- `/claim/` remains an operator-assisted fallback for an existing private recovery code, but it is not linked from the login screen.
 - The owner can add another owner from the editor after confirming the person's email address.
+
+Deployment requires the `RESEND_API_KEY` Worker secret. Apply D1 migrations before deploying:
+
+```sh
+npm run cf:migrate:remote
+wrangler secret put RESEND_API_KEY
+npm run cf:deploy
+```

@@ -1,9 +1,14 @@
 const SESSION_COOKIE = '__Host-numbered_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+const RESET_TTL_SECONDS = 30 * 60
 // Cloudflare Workers caps PBKDF2 at 100,000 iterations.
 const PASSWORD_ITERATIONS = 100000
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const MAX_LOGIN_ATTEMPTS = 5
+const RESET_WINDOW_MS = 60 * 60 * 1000
+const RESET_COOLDOWN_MS = 60 * 1000
+const MAX_RESET_EMAIL_REQUESTS = 3
+const MAX_RESET_IP_REQUESTS = 10
 const MAX_CONTENT_BYTES = 80_000
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024
@@ -18,12 +23,12 @@ const mediaTypes = {
 }
 
 export default {
-  fetch(request, env) {
-    return handleRequest(request, env)
+  fetch(request, env, context) {
+    return handleRequest(request, env, context)
   },
 }
 
-export async function handleRequest(request, env) {
+export async function handleRequest(request, env, context) {
   const url = new URL(request.url)
 
   try {
@@ -33,9 +38,12 @@ export async function handleRequest(request, env) {
       'GET /login': () => loginPage('', 200, url.searchParams.get('reset') === '1' ? 'Password saved. Sign in with it now.' : ''),
       'POST /login': () => browserLogin(request, env),
       'GET /claim': () => claimPage(),
-      'POST /claim': () => claimPassword(request, env),
-      'GET /forgot-password': () => claimPage(),
-      'POST /forgot-password': () => claimPassword(request, env),
+      'POST /claim': () => claimPassword(request, env, { renderPage: claimPage, invalidMessage: 'That recovery code is invalid or expired' }),
+      'GET /forgot-password': () => forgotPasswordPage(),
+      'POST /forgot-password': () => requestPasswordReset(request, env, context),
+      'GET /reset-password': () => resetPasswordPage(),
+      'POST /reset-password': () => claimPassword(request, env, { renderPage: resetPasswordPage, invalidMessage: 'This reset link is no longer valid. Request a new link.' }),
+      'GET /reset-password-script.js': () => resetPasswordScript(),
       'GET /api/content': () => getPublicContent(request, env),
       'POST /api/setup': () => setup(request, env),
       'POST /api/login': () => login(request, env),
@@ -159,14 +167,137 @@ async function browserLogin(request, env) {
   }
 }
 
-async function claimPassword(request, env) {
+async function requestPasswordReset(request, env, context) {
+  assertMutationOrigin(request)
+  try {
+    const form = await readForm(request, 4_000)
+    const email = requireEmail(form.get('email'))
+    const work = processPasswordResetRequest(request, env, email)
+    if (context?.waitUntil) context.waitUntil(work)
+    else await work
+    return passwordResetRequestedPage()
+  } catch (error) {
+    if (!(error instanceof Response)) throw error
+    const message = await error.json().then((body) => body.error).catch(() => 'Enter a complete email address.')
+    return forgotPasswordPage(message === 'A valid email is required' ? 'Enter a complete email address.' : message, error.status)
+  }
+}
+
+async function processPasswordResetRequest(request, env, email) {
+  try {
+    if (!(await allowPasswordResetRequest(request, env, email))) return
+    if (!env.RESEND_API_KEY && !env.EMAIL_TRANSPORT) {
+      console.error('password reset email unavailable', 'mail_configuration_missing')
+      return
+    }
+
+    const user = await findUser(env, email)
+    if (!user || user.disabled) return
+
+    const token = randomToken()
+    const tokenHash = await sha256Base64(token)
+    const inviteId = crypto.randomUUID()
+    const now = nowIso()
+    const expiresAt = new Date(Date.now() + RESET_TTL_SECONDS * 1000).toISOString()
+    const supersededMarker = `${now}#superseded#${crypto.randomUUID()}`
+    await env.DB.batch([
+      env.DB.prepare(
+        'update password_invites set used_at = ? where user_id = ? and used_at is null',
+      ).bind(supersededMarker, user.id),
+      env.DB.prepare(
+        'insert into password_invites (id, user_id, token_hash, expires_at, used_at, created_at) values (?, ?, ?, ?, null, ?)',
+      ).bind(inviteId, user.id, tokenHash, expiresAt, now),
+    ])
+
+    const sent = await sendPasswordResetEmail(env, { email: user.email, token, inviteId })
+    if (!sent) {
+      await env.DB.prepare(
+        'update password_invites set used_at = ? where id = ? and used_at is null',
+      ).bind(`${nowIso()}#delivery-failed`, inviteId).run()
+      console.error('password reset email delivery failed', 'provider_rejected')
+    }
+  } catch (error) {
+    console.error('password reset request failed', error?.name || 'Error')
+  }
+}
+
+async function allowPasswordResetRequest(request, env, email) {
+  const now = Date.now()
+  const emailKey = `email:${await sha256Base64(email)}`
+  const ipKey = `ip:${await sha256Base64(clientIp(request))}`
+  const [emailLimit, ipLimit] = await Promise.all([
+    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(emailKey).first(),
+    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(ipKey).first(),
+  ])
+  const emailState = nextResetLimit(emailLimit, now)
+  const ipState = nextResetLimit(ipLimit, now)
+  const emailCoolingDown = emailLimit?.last_requested_at && Date.parse(emailLimit.last_requested_at) > now - RESET_COOLDOWN_MS
+  const allowed = !emailCoolingDown && emailState.attempts <= MAX_RESET_EMAIL_REQUESTS && ipState.attempts <= MAX_RESET_IP_REQUESTS
+
+  await env.DB.batch([
+    resetLimitStatement(env, emailKey, emailState),
+    resetLimitStatement(env, ipKey, ipState),
+  ])
+  return allowed
+}
+
+function nextResetLimit(row, now) {
+  const expired = !row || Date.parse(row.window_started) < now - RESET_WINDOW_MS
+  return {
+    attempts: expired ? 1 : Number(row.attempts) + 1,
+    windowStarted: expired ? new Date(now).toISOString() : row.window_started,
+    lastRequestedAt: new Date(now).toISOString(),
+  }
+}
+
+function resetLimitStatement(env, key, state) {
+  return env.DB.prepare(
+    `insert into password_reset_limits (key, attempts, window_started, last_requested_at)
+      values (?, ?, ?, ?) on conflict(key) do update set
+      attempts = excluded.attempts, window_started = excluded.window_started,
+      last_requested_at = excluded.last_requested_at`,
+  ).bind(key, state.attempts, state.windowStarted, state.lastRequestedAt)
+}
+
+async function sendPasswordResetEmail(env, { email, token, inviteId }) {
+  const origin = passwordResetOrigin(env)
+  const resetUrl = `${origin}/reset-password/#token=${token}`
+  const message = {
+    from: env.RESET_EMAIL_FROM || 'Numbered <numbered@parabolos.com>',
+    to: [email],
+    subject: 'Reset your Numbered password',
+    text: `Use this link to choose a new Numbered password:\n\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, you can ignore this email.`,
+  }
+  if (env.EMAIL_TRANSPORT) return Boolean((await env.EMAIL_TRANSPORT.send(message))?.sent)
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'content-type': 'application/json',
+      'idempotency-key': `numbered-reset/${inviteId}`,
+    },
+    body: JSON.stringify(message),
+  })
+  return response.ok
+}
+
+function passwordResetOrigin(env) {
+  const origin = new URL(env.PUBLIC_ORIGIN || 'https://numbered-preview-dev.skidmore.workers.dev')
+  if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash) {
+    throw new Error('Invalid password reset origin configuration')
+  }
+  return origin.origin
+}
+
+async function claimPassword(request, env, { renderPage, invalidMessage }) {
   assertMutationOrigin(request)
   try {
     const form = await readForm(request, 5_000)
     const token = String(form.get('code') || '').trim()
     const password = requirePassword(form.get('password'))
     if (password !== String(form.get('confirmation') || '')) throw responseError('Passwords do not match', 400)
-    if (token.length < 32 || token.length > 256) throw responseError('That setup code is invalid or expired', 401)
+    if (token.length < 32 || token.length > 256) throw responseError(invalidMessage, 401)
 
     const tokenHash = await sha256Base64(token)
     const now = nowIso()
@@ -176,7 +307,7 @@ async function claimPassword(request, env) {
         where i.token_hash = ? and i.used_at is null and i.expires_at > ? limit 1`,
     ).bind(tokenHash, now).first()
     if (!invite || invite.disabled || invite.user_id !== invite.matched_user_id) {
-      throw responseError('That setup code is invalid or expired', 401)
+      throw responseError(invalidMessage, 401)
     }
 
     const usedMarker = `${now}#${crypto.randomUUID()}`
@@ -201,7 +332,7 @@ async function claimPassword(request, env) {
       ).bind(usedMarker, invite.user_id, invite.id),
     ])
     if (results[0]?.meta?.changes !== 1 || results[1]?.meta?.changes !== 1) {
-      throw responseError('That recovery code is invalid or expired', 401)
+      throw responseError(invalidMessage, 401)
     }
     return new Response(null, {
       status: 303,
@@ -209,8 +340,8 @@ async function claimPassword(request, env) {
     })
   } catch (error) {
     if (!(error instanceof Response)) throw error
-    const message = await error.json().then((body) => body.error).catch(() => 'Password setup failed')
-    return claimPage(message, error.status)
+    const message = await error.json().then((body) => body.error).catch(() => 'We could not reset your password. Try again.')
+    return renderPage(message, error.status)
   }
 }
 
@@ -573,14 +704,15 @@ function fromBase64(value) { const normalized = value.replace(/-/g, '+').replace
 function responseError(message, status) { return json({ error: message }, status) }
 function json(body, status = 200, extraHeaders = {}) { return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...extraHeaders } }) }
 function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]) }
-function authPage({ eyebrow, title, intro, action, fields, error = '', notice = '', status = 200, footer = '' }) {
+function authPage({ eyebrow, title, intro, action = '', fields = '', error = '', notice = '', status = 200, footer = '', formAttributes = '', script = '' }) {
   const errorBlock = error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''
   const noticeBlock = notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ''
+  const actionBlock = action ? `<button type="submit">${escapeHtml(action)}</button>` : ''
   return new Response(`<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — Numbered</title>
-<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post"><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}<button type="submit">${escapeHtml(action)}</button>${footer ? `<p class="footer">${footer}</p>` : ''}</form></main></body></html>`, {
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
   })
 }
 function loginPage(error = '', status = 200, notice = '') {
@@ -597,11 +729,59 @@ function claimPage(error = '', status = 200) {
     footer: '<a href="/login/">Return to sign in</a>.',
   })
 }
+function forgotPasswordPage(error = '', status = 200) {
+  return authPage({
+    eyebrow: 'Private recovery', title: 'Reset your password', intro: 'Enter the email address you use for Numbered. We’ll send you a link to choose a new password.', action: 'Send reset link', error, status,
+    fields: '<label class="field"><span>Email address</span><input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" required></label>',
+    footer: '<a href="/login/">Return to sign in</a>',
+  })
+}
+function passwordResetRequestedPage() {
+  return authPage({
+    eyebrow: 'Private recovery', title: 'Check your email', intro: 'If an account exists for that address, we sent a password reset link. It expires in 30 minutes and may take a few minutes to arrive.',
+    footer: '<a href="/forgot-password/">Send another link</a> · <a href="/login/">Return to sign in</a>',
+  })
+}
+function resetPasswordPage(error = '', status = 200) {
+  return authPage({
+    eyebrow: 'Private recovery', title: 'Choose a new password', intro: 'Use 12–128 characters. This reset link works once.', action: 'Save password', error, status,
+    fields: '<input name="code" type="hidden"><label class="field"><span>New password</span><input name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" aria-describedby="password-help" required></label><p id="password-help">Use 12–128 characters.</p><label class="field"><span>Confirm new password</span><input name="confirmation" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label><noscript><p class="error" role="alert">Open this reset link in a browser with JavaScript enabled.</p></noscript>',
+    footer: '<a href="/forgot-password/">Request a new link</a> · <a href="/login/">Return to sign in</a>',
+    formAttributes: 'data-reset-form',
+    script: '<script src="/reset-password-script.js" defer></script>',
+  })
+}
+function resetPasswordScript() {
+  return new Response(`(() => {
+  const form = document.querySelector('[data-reset-form]')
+  const tokenField = form?.querySelector('input[name="code"]')
+  if (!form || !tokenField) return
+  const fragmentToken = new URLSearchParams(location.hash.slice(1)).get('token')
+  if (fragmentToken) sessionStorage.setItem('numberedResetToken', fragmentToken)
+  if (location.hash) history.replaceState(null, '', location.pathname)
+  tokenField.value = fragmentToken || sessionStorage.getItem('numberedResetToken') || ''
+  const submit = form.querySelector('button[type="submit"]')
+  if (!tokenField.value) {
+    submit.disabled = true
+    const error = document.createElement('p')
+    error.className = 'error'
+    error.setAttribute('role', 'alert')
+    error.textContent = 'This reset link is no longer valid. Request a new link.'
+    form.insertBefore(error, form.querySelector('.footer'))
+  }
+  form.addEventListener('submit', () => {
+    submit.disabled = true
+    submit.textContent = 'Saving password…'
+  })
+})()`, {
+    headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
+  })
+}
 function finalize(response) {
   const headers = new Headers(response.headers)
   if (response.status === 401 || response.status === 403) headers.set('cache-control', 'no-store')
   headers.set('x-content-type-options', 'nosniff')
-  headers.set('referrer-policy', 'strict-origin-when-cross-origin')
+  if (!headers.has('referrer-policy')) headers.set('referrer-policy', 'strict-origin-when-cross-origin')
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   headers.set('x-frame-options', 'DENY')
   headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
