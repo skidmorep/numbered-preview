@@ -151,7 +151,7 @@ test('reset links keep tokens out of requests and response HTML', async () => {
   assert.match(html, /Choose a new password/)
   assert.match(html, /name="code" type="hidden"/)
   assert.match(html, /src="\/reset-password-script\.js"/)
-  assert.equal(page.headers.get('referrer-policy'), 'no-referrer')
+  assert.equal(page.headers.get('referrer-policy'), 'same-origin')
 
   const script = await handleRequest(new Request('https://numbered.test/reset-password-script.js'), untouchedBindings().env)
   const javascript = await script.text()
@@ -202,6 +202,20 @@ test('admin routes reject missing sessions and cross-origin mutations before par
     body: 'code=not-a-real-code',
   }), untouchedBindings().env)
   assert.equal(crossOriginRecovery.status, 403)
+
+  const opaqueOriginRecovery = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { origin: 'null', 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'code=not-a-real-code',
+  }), untouchedBindings().env)
+  assert.equal(opaqueOriginRecovery.status, 403)
+
+  const missingOriginRecovery = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'code=not-a-real-code',
+  }), untouchedBindings().env)
+  assert.equal(missingOriginRecovery.status, 403)
 
   const upload = await handleRequest(new Request('https://numbered.test/api/admin/media', {
     method: 'POST',
