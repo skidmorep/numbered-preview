@@ -1,26 +1,26 @@
-# Numbered / JP Cutz preview
+# JP Cuts website
 
-A password-protected, no-index design preview with one shared content model and three switchable skins:
+A password-protected, no-index working preview with one shared content model, owner editing, approved JP photography, and three temporary layouts. Don's selected visual direction will replace the temporary layout switcher without changing the content/editor foundation.
 
 1. The Cut Record
 2. JP in the Chair
 3. The Open Chair
 
-Public preview: <https://numbered-preview-dev.skidmore.workers.dev/>
+Private preview: <https://dev.jpcuuts.com/>
 
-Editor: <https://numbered-preview-dev.skidmore.workers.dev/admin/>
+Editor: <https://dev.jpcuuts.com/admin/>
 
 ## Architecture
 
 - React and Vite render the public site and editor.
 - D1-backed email/password sessions protect the complete preview origin, including direct content and media URLs.
-- One content record drives all three skins.
+- One content record drives the working layouts and will carry into the selected design.
 - The public layouts are mobile-first; the design switcher collapses to one compact control on phones.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
 - D1 stores users, sessions, current content, and revision history.
 - Resend sends password-reset links from the verified `parabolos.com` domain. Its API key is a Worker secret and is never stored in source.
 - A private R2 bucket stores uploaded images and videos; the Worker validates and serves them.
-- Booking remains with the selected hosted booking provider. This app does not store card data or manage availability.
+- Booking goes to JP's Calendly. This app does not store card data or manage availability.
 
 ## Local development
 
@@ -44,18 +44,18 @@ Remote visual and editor checks require an owner session or the existing owner c
 
 ## Content and media rules
 
-- The editor supports shared copy, services, booking/event links, the three creative headlines, hero and portrait images, nine gallery slots, one uploaded video, and one featured Instagram reel.
+- The editor supports shared copy, services, booking/event links, the temporary preview headlines, the editable About JP bio and verse, public social/contact links, hero and portrait images, a before/after pair, gallery slots, one uploaded video, and one featured Instagram reel.
 - Instagram reels use a clean poster that opens Instagram. An uploaded featured video plays natively without Instagram's feed interface.
-- The public preview omits JP's phone number; event inquiries use the configured web link.
+- The public preview omits JP's phone number; event inquiries use `jp@jpcuuts.com`.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.
 - Videos must be MP4 or WebM and no larger than 15 MB.
 - Images require alt text before upload.
 - Empty optional sections stay hidden.
 - Published content writes a new revision; simultaneous stale saves are rejected.
 
-## Preview-only assets
+## Media source
 
-The bundled haircut photographs came from JP's public Booksy listing for concept work. Confirm permission and replace them with JP's approved files before a production launch.
+JP approved the selected client, wedding, and team photographs in the shared Dropbox project folder. Optimized derivatives belong in `public/media/defaults`; the source originals remain untouched.
 
 ## Account handoff and recovery
 

@@ -1,5 +1,5 @@
 {
-  "name": "numbered-preview",
+  "name": "jpcuuts-site",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "test": "node --test worker/*.test.js",
+    "test:foundation": "node scripts/foundation-e2e.cjs",
     "cf:dev": "npm run build && wrangler dev",
     "cf:migrate:local": "wrangler d1 migrations apply numbered-preview-dev-db --local",
     "cf:migrate:remote": "wrangler d1 migrations apply numbered-preview-dev-db --remote",

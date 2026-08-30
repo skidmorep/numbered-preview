@@ -12,6 +12,7 @@ import {
   UserFocus,
   X,
 } from '@phosphor-icons/react'
+import { BeforeAfterSlider } from './BeforeAfterSlider'
 
 const SKINS = [
   { id: 'cut-record', number: '01', name: 'The Cut Record' },
@@ -174,6 +175,7 @@ function Fact({ icon: Icon, value, label }) {
 }
 
 function ReviewSummary({ content, light = false }) {
+  if (!content.proof.rating || !content.proof.reviewCount) return null
   return (
     <div className={`n-review ${light ? 'is-light' : ''}`} aria-label={`${content.proof.rating} out of 5 from ${content.proof.reviewCount} Booksy reviews`}>
       <div className="n-stars" aria-hidden="true">
@@ -197,7 +199,7 @@ function EventsSection({ content, light = false }) {
   const href = safeEventUrl(content)
   return (
     <section className={`n-events ${light ? 'is-light' : ''}`} id="events">
-      <p className="n-micro">Groups · events · mobile</p>
+      <p className="n-micro">Groups · teams · events</p>
       <h2>{content.events.heading}</h2>
       <p>{content.events.body}</p>
       <ExternalButton href={href} className="n-button-outline">{content.events.actionLabel} →</ExternalButton>
@@ -243,10 +245,14 @@ function SentenceBreak({ children }) {
 
 function WorkGrid({ content, light = false }) {
   const gallery = content.media.gallery.filter((item) => item?.url).slice(3, 7)
+  const comparison = content.media.beforeAfter
   return (
     <section className={`n-work ${light ? 'is-light' : ''}`} id="work">
       <header><p className="n-micro">Selected work</p><h2>The work speaks.</h2></header>
       <div>{gallery.map((asset) => <Photo key={asset.url} asset={asset} />)}</div>
+      {comparison?.enabled && (
+        <BeforeAfterSlider before={comparison.before} after={comparison.after} heading={comparison.heading} />
+      )}
     </section>
   )
 }
@@ -258,13 +264,14 @@ function StorySection({ content, light = false }) {
         <p className="n-micro">{content.brand.verseReference}</p>
         <h2>{content.story.heading}</h2>
         <p>{content.story.body}</p>
+        <blockquote>“{content.brand.verseQuote}” <cite>— {content.brand.verseReference}</cite></blockquote>
       </div>
       <FeaturedMedia content={content} light={light} />
     </section>
   )
 }
 
-const servicePriority = ['line-up', 'adult-cut', 'cut-beard', 'kids-cut', 'after-hours']
+const servicePriority = ['haircut', 'beard-add-on']
 
 function ServiceList({ content, graphic = false, limit }) {
   const services = content.services
@@ -303,10 +310,19 @@ function ServicesSection({ content, light = false }) {
 }
 
 function SiteFooter({ content, light = false }) {
+  const links = [
+    ['Instagram', content.contact.instagramUrl],
+    ['Facebook', content.contact.facebookUrl],
+    ['TikTok', content.contact.tiktokUrl],
+    ['YouTube', content.contact.youtubeUrl],
+  ].filter(([, href]) => href)
   return (
     <footer className={`n-footer ${light ? 'is-light' : ''}`}>
       <b>{content.brand.publicName}</b>
-      {content.contact.instagramUrl && <ExternalButton href={content.contact.instagramUrl} className="n-footer-link">Instagram ↗</ExternalButton>}
+      <div className="n-footer-links">
+        {links.map(([label, href]) => <ExternalButton key={label} href={href} className="n-footer-link">{label} ↗</ExternalButton>)}
+        {content.contact.email && <a className="n-footer-link" href={`mailto:${content.contact.email}`}>{content.contact.email}</a>}
+      </div>
       <small>Preview · Password protected · Not indexed</small>
     </footer>
   )

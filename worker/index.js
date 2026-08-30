@@ -73,7 +73,7 @@ export async function handleRequest(request, env, context) {
     return finalize(await env.ASSETS.fetch(assetRequest))
   } catch (error) {
     if (error instanceof Response) return finalize(error)
-    console.error('numbered-preview request failed', error?.name || 'Error', error?.message || '', error?.stack || '')
+    console.error('jpcuuts-preview request failed', error?.name || 'Error', error?.message || '', error?.stack || '')
     return finalize(json({ error: 'Internal server error' }, 500))
   }
 }
@@ -263,10 +263,10 @@ async function sendPasswordResetEmail(env, { email, token, inviteId }) {
   const origin = passwordResetOrigin(env)
   const resetUrl = `${origin}/reset-password/#token=${token}`
   const message = {
-    from: env.RESET_EMAIL_FROM || 'Numbered <numbered@parabolos.com>',
+    from: env.RESET_EMAIL_FROM || 'JP Cuts <numbered@parabolos.com>',
     to: [email],
-    subject: 'Reset your Numbered password',
-    text: `Use this link to choose a new Numbered password:\n\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, you can ignore this email.`,
+    subject: 'Reset your JP Cuts password',
+    text: `Use this link to choose a new JP Cuts password:\n\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, you can ignore this email.`,
   }
   if (env.EMAIL_TRANSPORT) return Boolean((await env.EMAIL_TRANSPORT.send(message))?.sent)
 
@@ -283,7 +283,7 @@ async function sendPasswordResetEmail(env, { email, token, inviteId }) {
 }
 
 function passwordResetOrigin(env) {
-  const origin = new URL(env.PUBLIC_ORIGIN || 'https://numbered-preview-dev.skidmore.workers.dev')
+  const origin = new URL(env.PUBLIC_ORIGIN || 'https://dev.jpcuuts.com')
   if (origin.protocol !== 'https:' || origin.pathname !== '/' || origin.search || origin.hash) {
     throw new Error('Invalid password reset origin configuration')
   }
@@ -542,13 +542,20 @@ async function recordFailedLogin(env, key) {
 function validateContent(content) {
   if (!content || typeof content !== 'object' || Array.isArray(content)) throw responseError('Content must be an object', 400)
   const required = [
-    ['brand.publicName', 80], ['hero.eyebrow', 120], ['hero.headlines.cutRecord', 90],
+    ['brand.publicName', 80], ['brand.verseQuote', 180], ['brand.verseReference', 80],
+    ['hero.eyebrow', 120], ['hero.headlines.cutRecord', 90],
     ['hero.headlines.jpInChair', 90], ['hero.headlines.openChair', 90], ['hero.intro', 360],
     ['booking.label', 50], ['story.heading', 120], ['story.body', 700],
+    ['facts.priceRange', 30], ['facts.location', 80], ['facts.mobile', 60],
+    ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],
   ]
   required.forEach(([path, max]) => plainText(readPath(content, path), path, max))
   requireUrl(readPath(content, 'booking.url'), ['https:'], 'Booking URL')
+  if (readPath(content, 'contact.email')) requireEmail(readPath(content, 'contact.email'))
   optionalUrl(readPath(content, 'contact.instagramUrl'), ['https:'], 'Instagram URL')
+  optionalUrl(readPath(content, 'contact.facebookUrl'), ['https:'], 'Facebook URL')
+  optionalUrl(readPath(content, 'contact.tiktokUrl'), ['https:'], 'TikTok URL')
+  optionalUrl(readPath(content, 'contact.youtubeUrl'), ['https:'], 'YouTube URL')
   optionalUrl(readPath(content, 'events.actionUrl'), ['https:', 'sms:', 'tel:', 'mailto:'], 'Event URL')
   if (readPath(content, 'featured.type') === 'instagram') {
     const url = String(readPath(content, 'featured.url') || '')
@@ -564,11 +571,23 @@ function validateContent(content) {
   })
   const gallery = readPath(content, 'media.gallery')
   if (!Array.isArray(gallery) || gallery.length > 9) throw responseError('Use no more than nine gallery items', 400)
-  ;[readPath(content, 'media.hero'), readPath(content, 'media.portrait'), ...gallery].forEach((asset, index) => {
+  const beforeAfter = readPath(content, 'media.beforeAfter')
+  if (beforeAfter?.enabled) plainText(beforeAfter.heading, 'Before/after heading', 120)
+  const media = [
+    readPath(content, 'media.hero'),
+    readPath(content, 'media.portrait'),
+    beforeAfter?.before,
+    beforeAfter?.after,
+    ...gallery,
+  ]
+  media.forEach((asset, index) => {
     if (!asset?.url) return
     optionalMediaUrl(asset.url, `Media ${index + 1}`)
     if (asset.type === 'image') plainText(asset.alt, `Media ${index + 1} alt text`, 180)
   })
+  if (beforeAfter?.enabled && (!beforeAfter.before?.url || !beforeAfter.after?.url)) {
+    throw responseError('Before and after images are required when the slider is enabled', 400)
+  }
   return true
 }
 
@@ -709,8 +728,8 @@ function authPage({ eyebrow, title, intro, action = '', fields = '', error = '',
   const noticeBlock = notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ''
   const actionBlock = action ? `<button type="submit">${escapeHtml(action)}</button>` : ''
   return new Response(`<!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — Numbered</title>
-<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JPCUTS / NUMBERED</b></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — JP Cuts</title>
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JP CUTS</b></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
     status,
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'same-origin' },
   })
@@ -731,7 +750,7 @@ function claimPage(error = '', status = 200) {
 }
 function forgotPasswordPage(error = '', status = 200) {
   return authPage({
-    eyebrow: 'Private recovery', title: 'Reset your password', intro: 'Enter the email address you use for Numbered. We’ll send you a link to choose a new password.', action: 'Send reset link', error, status,
+    eyebrow: 'Private recovery', title: 'Reset your password', intro: 'Enter the email address you use for JP Cuts. We’ll send you a link to choose a new password.', action: 'Send reset link', error, status,
     fields: '<label class="field"><span>Email address</span><input name="email" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" maxlength="254" required></label>',
     footer: '<a href="/login/">Return to sign in</a>',
   })

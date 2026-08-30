@@ -98,17 +98,17 @@ export function Editor({ defaults }) {
   return (
     <div className="editor-app">
       <header className="editor-header">
-        <div><span className="editor-mark">JP</span><div><p>Numbered preview</p><h1>Content editor</h1></div></div>
+        <div><span className="editor-mark">JP</span><div><p>JP Cuts preview</p><h1>Content editor</h1></div></div>
         <div className="editor-account"><span>{user?.email}</span><button type="button" className="link-button" onClick={logout}>Log out</button></div>
       </header>
       <div className="editor-layout">
         <aside>
-          <p className="editor-kicker">Preview each design</p>
+          <p className="editor-kicker">Current working layouts</p>
           {previewSkins.map(([id, label]) => <a key={id} href={`/?skin=${id}`} target="_blank" rel="noreferrer">{label} ↗</a>)}
-          <p className="editor-help">One shared content record updates all three designs. Empty optional sections stay hidden.</p>
+          <p className="editor-help">One shared content record will carry into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
-          <EditorSection title="Basics" description="Name, booking, positioning, and the three design headlines.">
+          <EditorSection title="Basics" description="Name, booking, positioning, and temporary preview headlines.">
             <div className="field-grid two">
               <Field label="Public name" value={content.brand.publicName} onChange={(value) => update('brand.publicName', value)} maxLength={80} />
               <Field label="Hero eyebrow" value={content.hero.eyebrow} onChange={(value) => update('hero.eyebrow', value)} maxLength={120} />
@@ -143,32 +143,41 @@ export function Editor({ defaults }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="Photos & video" description="Replace the hero, JP portrait, gallery, or featured video. Images require useful alt text.">
+          <EditorSection title="Photos & video" description="Replace the hero, JP portrait, before/after pair, gallery, or featured video. Images require useful alt text.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
             <div className="media-preview-grid">
               <MediaPreview label="Hero" asset={content.media.hero} />
               <MediaPreview label="JP portrait" asset={content.media.portrait} />
+              <MediaPreview label="Before" asset={content.media.beforeAfter.before} />
+              <MediaPreview label="After" asset={content.media.beforeAfter.after} />
               {content.media.gallery.map((asset, index) => <MediaPreview key={`${asset.url}-${index}`} label={`Gallery ${index + 1}`} asset={asset} />)}
             </div>
+            <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
+            <Field label="Before/after heading" value={content.media.beforeAfter.heading} onChange={(value) => update('media.beforeAfter.heading', value)} maxLength={120} />
             <div className="field-grid two">
               <label className="field"><span>Featured media</span><select value={content.featured.type} onChange={(event) => update('featured.type', event.target.value)}><option value="instagram">Instagram reel</option><option value="video">Uploaded video</option><option value="image">Image URL</option></select></label>
               <Field label="Featured URL" value={content.featured.url} onChange={(value) => update('featured.url', value)} maxLength={500} />
             </div>
           </EditorSection>
 
-          <EditorSection title="Story, events & contact" description="Keep the meaning brief and give group work a separate path.">
+          <EditorSection title="About JP, events & contact" description="JP can replace the temporary bio, keep the verse as a small detail, and update every public contact link.">
             <div className="field-grid two">
               <Field label="Verse reference" value={content.brand.verseReference} onChange={(value) => update('brand.verseReference', value)} maxLength={80} />
-              <Field label="Story heading" value={content.story.heading} onChange={(value) => update('story.heading', value)} maxLength={120} />
+              <Field label="Verse quote" value={content.brand.verseQuote} onChange={(value) => update('brand.verseQuote', value)} maxLength={180} />
             </div>
-            <Field label="Numbered story" value={content.story.body} onChange={(value) => update('story.body', value)} textarea maxLength={700} />
+            <Field label="About heading" value={content.story.heading} onChange={(value) => update('story.heading', value)} maxLength={120} />
+            <Field label="About JP bio" value={content.story.body} onChange={(value) => update('story.body', value)} textarea maxLength={700} />
             <label className="check-field"><input type="checkbox" checked={content.events.enabled} onChange={(event) => update('events.enabled', event.target.checked)} /> Show group and event section</label>
             <Field label="Event heading" value={content.events.heading} onChange={(value) => update('events.heading', value)} maxLength={120} />
             <Field label="Event description" value={content.events.body} onChange={(value) => update('events.body', value)} textarea maxLength={700} />
             <div className="field-grid two">
               <Field label="Event button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
               <Field label="Event link (https, sms, tel, or mailto)" value={content.events.actionUrl} onChange={(value) => update('events.actionUrl', value)} maxLength={500} />
+              <Field label="Public email" type="email" value={content.contact.email} onChange={(value) => update('contact.email', value)} maxLength={254} />
               <Field label="Instagram URL" type="url" value={content.contact.instagramUrl} onChange={(value) => update('contact.instagramUrl', value)} maxLength={500} />
+              <Field label="Facebook URL" type="url" value={content.contact.facebookUrl} onChange={(value) => update('contact.facebookUrl', value)} maxLength={500} />
+              <Field label="TikTok URL" type="url" value={content.contact.tiktokUrl} onChange={(value) => update('contact.tiktokUrl', value)} maxLength={500} />
+              <Field label="YouTube URL" type="url" value={content.contact.youtubeUrl} onChange={(value) => update('contact.youtubeUrl', value)} maxLength={500} />
             </div>
           </EditorSection>
           {user?.role === 'owner' && <OwnerAccess setStatus={setStatus} />}
@@ -192,7 +201,7 @@ function Login({ onSuccess }) {
       onSuccess(payload.user)
     } catch (error) { setStatus(error.message) }
   }
-  return <EditorFrame><form className="auth-card" onSubmit={submit}><p className="editor-kicker">Numbered preview</p><h1>Sign in to edit</h1><Field name="email" label="Email" type="email" autoComplete="username" required /><Field name="password" label="Password" type="password" autoComplete="current-password" required /><a href="/forgot-password/">Forgot password?</a><button className="publish-button" type="submit">Sign in</button><p role="status">{status}</p><a href="/">Return to preview</a></form></EditorFrame>
+  return <EditorFrame><form className="auth-card" onSubmit={submit}><p className="editor-kicker">JP Cuts preview</p><h1>Sign in to edit</h1><Field name="email" label="Email" type="email" autoComplete="username" required /><Field name="password" label="Password" type="password" autoComplete="current-password" required /><a href="/forgot-password/">Forgot password?</a><button className="publish-button" type="submit">Sign in</button><p role="status">{status}</p><a href="/">Return to preview</a></form></EditorFrame>
 }
 
 function PasswordChange({ user, onSuccess }) {
@@ -214,6 +223,8 @@ function MediaUploader({ content, update, setStatus }) {
   const targets = useMemo(() => [
     ['hero', 'Hero image'],
     ['portrait', 'JP portrait'],
+    ['before', 'Before image'],
+    ['after', 'After image'],
     ...content.media.gallery.map((_, index) => [`gallery-${index}`, `Gallery ${index + 1}`]),
     ['featured-video', 'Featured video'],
   ], [content.media.gallery])
@@ -231,6 +242,8 @@ function MediaUploader({ content, update, setStatus }) {
       const asset = payload.asset
       if (target === 'hero') update('media.hero', asset)
       else if (target === 'portrait') update('media.portrait', asset)
+      else if (target === 'before') update('media.beforeAfter.before', asset)
+      else if (target === 'after') update('media.beforeAfter.after', asset)
       else if (target === 'featured-video') {
         update('featured.type', 'video')
         update('featured.url', asset.url)
@@ -271,7 +284,7 @@ function OwnerAccess({ setStatus }) {
   return <EditorSection title="Owner access" description="JP receives the same access as paul. New owners must change their temporary password before they can view or publish the preview."><form className="owner-access" onSubmit={createOwner}><Field name="email" label="JP's email" type="email" autoComplete="off" required /><Field name="tempPassword" label="Temporary password (12–128 characters)" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /><button type="submit">Create owner account</button></form></EditorSection>
 }
 
-function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-mark">JP</span><b>JPCUTS / NUMBERED</b></div>{children}</main> }
+function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-mark">JP</span><b>JP CUTS</b></div>{children}</main> }
 function EditorSection({ title, description, children }) { return <section className="editor-section"><header><h2>{title}</h2><p>{description}</p></header><div className="editor-fields">{children}</div></section> }
 
 function Field({ label, onChange, textarea = false, value, ...props }) {

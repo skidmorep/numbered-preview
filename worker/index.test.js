@@ -9,7 +9,10 @@ const sessionCookie = `__Host-numbered_session=${sessionToken}`
 test('bundled content passes the Worker validation contract', () => {
   assert.equal(validateContent(structuredClone(defaultContent)), true)
   assert.equal(defaultContent.contact.phone, '')
-  assert.match(defaultContent.events.actionUrl, /^https:\/\//)
+  assert.match(defaultContent.events.actionUrl, /^mailto:/)
+  assert.equal(defaultContent.brand.publicName, 'JP CUTS')
+  assert.equal(defaultContent.booking.url, 'https://calendly.com/jpcuts/30mins')
+  assert.equal(defaultContent.media.beforeAfter.enabled, true)
 })
 
 test('content validation rejects unsafe URLs, markup, excess galleries, and missing alt text', async (t) => {
@@ -34,6 +37,18 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
   await t.test('published images need alt text', () => {
     const content = structuredClone(defaultContent)
     content.media.hero.alt = ''
+    assertResponseError(() => validateContent(content), 400)
+  })
+
+  await t.test('before and after images both need alt text', () => {
+    const content = structuredClone(defaultContent)
+    content.media.beforeAfter.after.alt = ''
+    assertResponseError(() => validateContent(content), 400)
+  })
+
+  await t.test('social links reject executable protocols', () => {
+    const content = structuredClone(defaultContent)
+    content.contact.tiktokUrl = 'javascript:alert(1)'
     assertResponseError(() => validateContent(content), 400)
   })
 
@@ -115,6 +130,7 @@ test('login exposes an emailed forgot-password flow without account disclosure',
   assert.doesNotMatch(requestedHtml, /skidmore@parabolos\.com/)
   await Promise.all(pending)
   assert.equal(bindings.state.sent.length, 1)
+  assert.equal(bindings.state.sent[0].subject, 'Reset your JP Cuts password')
   assert.match(bindings.state.sent[0].text, /\/reset-password\/#token=[A-Za-z0-9_-]{40,}/)
   assert.doesNotMatch(bindings.state.sent[0].text, /\?token=/)
   assert.equal(bindings.state.invites.length, 1)
@@ -303,7 +319,7 @@ function resetRequestEnv({ userExists = true } = {}) {
   }
   const env = {
     PUBLIC_ORIGIN: 'https://numbered.test',
-    RESET_EMAIL_FROM: 'Numbered <numbered@parabolos.com>',
+    RESET_EMAIL_FROM: 'JP Cuts <numbered@parabolos.com>',
     EMAIL_TRANSPORT: {
       async send(message) { state.sent.push(message); return { sent: true, id: 'email-1' } },
     },

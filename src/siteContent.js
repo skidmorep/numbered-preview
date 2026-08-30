@@ -5,44 +5,41 @@ const media = (name, alt) => ({
 })
 
 export const defaultContent = {
-  version: 1,
+  version: 2,
   revision: 0,
   brand: {
-    publicName: 'NUMBERED / JP CUTZ',
-    bridgeName: 'Cuts by JP',
+    publicName: 'JP CUTS',
+    bridgeName: '@jpcuuts',
     verseQuote: 'Even the hairs of your head are all numbered.',
     verseReference: 'Matthew 10:30',
   },
   hero: {
-    eyebrow: 'Nashville barber · Mobile service available',
+    eyebrow: 'Smyrna barber · Nashville area',
     headlines: {
-      cutRecord: 'Look sharp. No guesswork.',
-      jpInChair: 'JP in the chair',
-      openChair: 'The open chair',
+      cutRecord: 'Clean cuts. Clear confidence.',
+      jpInChair: 'Your cut. Done right.',
+      openChair: 'Book your next cut.',
     },
-    intro: 'Book JP for a clean cut in Nashville, with mobile service when the week calls for it.',
+    intro: 'JP delivers clean, precise cuts for clients across Smyrna and the Nashville area.',
   },
   booking: {
-    label: 'See times & book',
-    url: 'https://booksy.com/en-us/1230497_jp-cutz_barber-shop_123099_nashville-davidson',
+    label: 'Book a cut',
+    url: 'https://calendly.com/jpcuts/30mins',
   },
   services: [
-    { id: 'cut-beard', name: 'Haircut + beard', price: '$40', duration: '', note: 'Trim and lineup', enabled: true },
-    { id: 'adult-cut', name: 'Haircut', price: '$35', duration: '', note: 'Current public Booksy listing', enabled: true },
-    { id: 'kids-cut', name: 'Kids cut', price: '$25', duration: '', note: '', enabled: true },
-    { id: 'line-up', name: 'Line-up', price: '$20', duration: '', note: '', enabled: true },
-    { id: 'after-hours', name: 'After / early hours', price: '$60', duration: '', note: '', enabled: true },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes', note: 'Book through Calendly', enabled: true },
+    { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '', note: 'Add-on with a haircut', enabled: true },
   ],
   facts: {
-    priceRange: '$20–$60',
-    location: 'Nashville',
-    mobile: 'Mobile service',
-    bookingTruth: 'Booksy',
+    priceRange: '$35',
+    location: 'Faded University · Smyrna',
+    mobile: 'Nashville area',
+    bookingTruth: 'Calendly',
   },
   proof: {
-    rating: '5.0',
-    reviewCount: 9,
-    sourceLabel: 'Verified on Booksy',
+    rating: '',
+    reviewCount: 0,
+    sourceLabel: '',
   },
   media: {
     hero: media('jp-hero-03', 'A finished haircut by JP in the barber chair'),
@@ -57,6 +54,12 @@ export const defaultContent = {
       media('jp-cut-07', 'A finished cut and braided style by JP'),
       media('jp-cut-08', 'A clean fade completed by JP'),
     ],
+    beforeAfter: {
+      enabled: true,
+      heading: 'Slide to see the difference.',
+      before: media('jp-before-01', 'A client before a haircut by JP'),
+      after: media('jp-after-01', 'The same client after a haircut by JP'),
+    },
   },
   featured: {
     enabled: true,
@@ -66,23 +69,49 @@ export const defaultContent = {
     posterUrl: '/media/defaults/jp-cut-02.webp',
   },
   story: {
-    heading: 'Details matter because people do.',
-    body: 'The name Numbered comes from Matthew 10:30. It is a reminder that every person matters and every detail deserves care.',
+    heading: 'Meet JP.',
+    body: 'JP is a Smyrna-based barber serving clients across the Nashville area. He brings a calm chair, careful attention, and a clean finish to every appointment. This temporary bio is ready for JP to replace in the editor.',
   },
   events: {
     enabled: true,
-    heading: 'Bring JP to the room.',
-    body: 'Teams, weddings, pop-ups, church and youth events, and group cuts deserve a scoped conversation about date, headcount, location, and travel.',
-    actionLabel: 'Ask about an event',
-    actionUrl: 'https://www.instagram.com/cutzby.jp/',
+    heading: 'Cuts for your group or event.',
+    body: 'Planning cuts for a team, wedding, pop-up, church, or youth event? Email JP with the date, headcount, and location to start the conversation.',
+    actionLabel: 'Email JP',
+    actionUrl: 'mailto:jp@jpcuuts.com?subject=Group%20or%20event%20inquiry',
   },
   contact: {
+    email: 'jp@jpcuuts.com',
     phone: '',
-    instagramUrl: 'https://www.instagram.com/cutzby.jp/',
+    instagramUrl: 'https://www.instagram.com/jpcuuts/',
+    facebookUrl: 'https://www.facebook.com/jpcuuts',
+    tiktokUrl: 'https://www.tiktok.com/@jpcuuts',
+    youtubeUrl: 'https://www.youtube.com/@jpcuuts',
   },
   settings: {
     defaultSkin: 'cut-record',
   },
+}
+
+function migrateContent(incoming) {
+  if (!incoming || Number(incoming.version || 0) >= defaultContent.version) return incoming
+
+  return {
+    ...incoming,
+    version: defaultContent.version,
+    brand: defaultContent.brand,
+    hero: defaultContent.hero,
+    booking: defaultContent.booking,
+    services: defaultContent.services,
+    facts: defaultContent.facts,
+    proof: defaultContent.proof,
+    media: {
+      ...incoming.media,
+      beforeAfter: defaultContent.media.beforeAfter,
+    },
+    story: defaultContent.story,
+    events: defaultContent.events,
+    contact: defaultContent.contact,
+  }
 }
 
 function deepMerge(base, incoming) {
@@ -100,7 +129,7 @@ function deepMerge(base, incoming) {
 }
 
 export function mergeContent(incoming) {
-  return deepMerge(defaultContent, incoming || {})
+  return deepMerge(defaultContent, migrateContent(incoming) || {})
 }
 
 export function instagramEmbedUrl(url) {
