@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultContent } from '../src/siteContent.js'
+import { defaultContent, mergeContent } from '../src/siteContent.js'
 import { detectMediaType, handleRequest, parseByteRange, validateContent } from './index.js'
 
 const sessionToken = 'test-session-token-with-enough-entropy'
@@ -13,6 +13,37 @@ test('bundled content passes the Worker validation contract', () => {
   assert.equal(defaultContent.brand.publicName, 'JP CUTS')
   assert.equal(defaultContent.booking.url, 'https://calendly.com/jpcuts/30mins')
   assert.equal(defaultContent.media.beforeAfter.enabled, true)
+})
+
+test('v2 content migration preserves owner edits while selecting one hero headline', () => {
+  const legacy = structuredClone(defaultContent)
+  legacy.version = 2
+  legacy.brand.publicName = 'JP CUSTOM'
+  legacy.hero = {
+    eyebrow: 'Custom eyebrow',
+    intro: 'Custom introduction',
+    headlines: {
+      cutRecord: 'Owner-authored headline.',
+      jpInChair: 'Unused second headline.',
+      openChair: 'Unused third headline.',
+    },
+  }
+  legacy.booking.url = 'https://calendly.com/example/custom'
+  legacy.story.body = 'Owner-authored biography.'
+  legacy.media.beforeAfter.heading = 'Owner-authored comparison.'
+  legacy.media.hero.alt = 'Owner-authored hero alt text'
+
+  const migrated = mergeContent(legacy)
+  assert.equal(migrated.version, 3)
+  assert.equal(migrated.brand.publicName, 'JP CUSTOM')
+  assert.equal(migrated.hero.eyebrow, 'Custom eyebrow')
+  assert.equal(migrated.hero.intro, 'Custom introduction')
+  assert.equal(migrated.hero.headline, 'Owner-authored headline.')
+  assert.equal(migrated.booking.url, 'https://calendly.com/example/custom')
+  assert.equal(migrated.story.body, 'Owner-authored biography.')
+  assert.equal(migrated.media.beforeAfter.heading, 'Owner-authored comparison.')
+  assert.equal(migrated.media.hero.alt, 'Owner-authored hero alt text')
+  assert.doesNotMatch(JSON.stringify(migrated), /Unused second headline/)
 })
 
 test('content validation rejects unsafe URLs, markup, excess galleries, and missing alt text', async (t) => {

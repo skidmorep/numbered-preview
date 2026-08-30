@@ -1,10 +1,6 @@
 # JP Cuts website
 
-A password-protected, no-index working preview with one shared content model, owner editing, approved JP photography, and three temporary layouts. Don's selected visual direction will replace the temporary layout switcher without changing the content/editor foundation.
-
-1. The Cut Record
-2. JP in the Chair
-3. The Open Chair
+A password-protected, no-index working preview with one shared content model, owner editing, approved JP photography, and the selected **The Chair** design. Warm tan carries the page while camo remains a restrained accent.
 
 Private preview: <https://dev.jpcuuts.com/>
 
@@ -14,8 +10,8 @@ Editor: <https://dev.jpcuuts.com/admin/>
 
 - React and Vite render the public site and editor.
 - D1-backed email/password sessions protect the complete preview origin, including direct content and media URLs.
-- One content record drives the working layouts and will carry into the selected design.
-- The public layouts are mobile-first; the design switcher collapses to one compact control on phones.
+- One content record drives the selected public design.
+- The public site is mobile-first and scales through tablet and desktop without a layout switcher.
 - A Cloudflare Worker serves the app, content API, authenticated editor API, and uploaded media.
 - D1 stores users, sessions, current content, and revision history.
 - Resend sends password-reset links from the verified `parabolos.com` domain. Its API key is a Worker secret and is never stored in source.
@@ -37,14 +33,15 @@ Run the release checks:
 npm run lint
 npm test
 npm run build
-node scripts/visual-check.cjs
+npm run test:chair
+npm run test:foundation
 ```
 
 Remote visual and editor checks require an owner session or the existing owner credentials and test-video path.
 
 ## Content and media rules
 
-- The editor supports shared copy, services, booking/event links, the temporary preview headlines, the editable About JP bio and verse, public social/contact links, hero and portrait images, a before/after pair, gallery slots, one uploaded video, and one featured Instagram reel.
+- The editor supports shared copy, services, booking/event links, the hero headline, the editable About JP bio and verse, public social/contact links, hero and portrait images, a before/after pair, gallery slots, one uploaded video, and one featured Instagram reel.
 - Instagram reels use a clean poster that opens Instagram. An uploaded featured video plays natively without Instagram's feed interface.
 - The public preview omits JP's phone number; event inquiries use `jp@jpcuuts.com`.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.

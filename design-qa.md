@@ -1,34 +1,35 @@
-# Design QA — mobile skin rebuild
+# The Chair design QA
 
-## Reference and implementation states
+## Target
 
-Viewport: 426 × 923 CSS pixels. Don's 852 × 1846 PNGs were normalized to the same viewport before comparison.
+- Don's four approved **The Chair** reference sheets.
+- paul's override: warm tan is the dominant page surface; camo is a smaller, lighter accent.
+- One responsive UI only. No design switcher.
 
-| Skin | Reference | Implementation | Combined comparison |
-| --- | --- | --- | --- |
-| 01 — The Cut Record | `/Users/skidmore/.openclaw/workspace-don/output/jpcuuts-mobile-mockups-20260828/01-the-cut-record.png` | `proof/design-qa/implementation-cut-record.png` | `proof/design-qa/comparisons/compare-01.png` |
-| 02 — JP in the Chair | `/Users/skidmore/.openclaw/workspace-don/output/jpcuuts-mobile-mockups-20260828/02-jp-in-the-chair.png` | `proof/design-qa/implementation-jp-in-chair.png` | `proof/design-qa/comparisons/compare-02.png` |
-| 03 — The Open Chair | `/Users/skidmore/.openclaw/workspace-don/output/jpcuuts-mobile-mockups-20260828/03-the-open-chair.png` | `proof/design-qa/implementation-open-chair.png` | `proof/design-qa/comparisons/compare-03.png` |
+## Comparison evidence
 
-Each combined image places the reference on the left and the implementation on the right. The implementation intentionally includes the password-protected preview's 48-pixel design switcher above the website.
+- `proof/the-chair/comparison-hero.png`
+- `proof/the-chair/comparison-work.png`
+- `proof/the-chair/comparison-services-about.png`
+- `proof/the-chair/comparison-events-booking.png`
+- Full-page captures at 390×844 and 1440×900 under `proof/the-chair/`.
 
-## Iterations
+## Pass 1
 
-1. Rebuilt the three designs on one shared React/content scaffold.
-2. Removed a mobile cascade conflict that exposed the desktop booking button and displaced the menu.
-3. Matched the Cut Record's compact vertical rhythm and forced the two-sentence headline break.
-4. Matched the Open Chair's wide image crop and above-the-fold service density.
-5. Replaced the Instagram iframe with a clean poster link while preserving native playback for uploaded video.
-6. Confirmed the public surface contains no `tel:` or `sms:` links.
+- **P1 · layout / typography:** The desktop hero constrained the editable headline too narrowly and wrapped “IN.” onto a third line. Fixed by preserving sentence breaks as two display lines and widening the desktop lockup.
+- **P2 · color / brand accent:** The first camo dividers competed with the tan sections at full-page scale. Reduced both divider height and opacity.
+- **P2 · proof quality:** The local fallback banner obscured the clean hero comparison. The visual harness now serves bundled content through the normal content response, so proof captures the real live state without changing product behavior.
 
-## Final findings
+## Final pass
 
-- P0: none.
-- P1: none remaining.
-- P2: none remaining.
-- P3: JP in the Chair uses the strongest approved real finished-cut image currently available. Its intended JP-at-work image remains an asset replacement when JP supplies one.
-- P3: Service prices use the current Booksy values instead of the mockups' illustrative values.
+- Typography preserves The Chair's outlined hero label, condensed display hierarchy, and blunt service/about/event headings.
+- Warm tan owns the work, about, and final booking surfaces. Ink and olive provide bounded section contrast.
+- Camo appears only in four narrow real-photo dividers sourced from JP's chair cape.
+- Every target image role is filled with real JP/client photography; no CSS illustration or placeholder image remains.
+- Desktop, tablet portrait, tablet landscape, and 390×844 touch layouts have no horizontal overflow or broken image.
+- Booking remains visible above the fold on mobile and desktop.
+- Mobile navigation, Calendly links, social links, and the before/after pointer and keyboard controls remain functional.
+- Focus visibility, semantic buttons/links, alt text, reduced-motion behavior, and practical mobile tap targets are present.
+- No design switcher or stale skin query is rendered.
 
-Automated capture checks passed for all three skins: exact active skin, three mobile switcher choices, no horizontal overflow, no phone/SMS links, no iframe, and one clean featured-reel poster.
-
-**Final result: passed.**
+**final result: passed**

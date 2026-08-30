@@ -5,7 +5,7 @@ const media = (name, alt) => ({
 })
 
 export const defaultContent = {
-  version: 2,
+  version: 3,
   revision: 0,
   brand: {
     publicName: 'JP CUTS',
@@ -15,11 +15,7 @@ export const defaultContent = {
   },
   hero: {
     eyebrow: 'Smyrna barber · Nashville area',
-    headlines: {
-      cutRecord: 'Clean cuts. Clear confidence.',
-      jpInChair: 'Your cut. Done right.',
-      openChair: 'Book your next cut.',
-    },
+    headline: 'Your cut. Dialed in.',
     intro: 'JP delivers clean, precise cuts for clients across Smyrna and the Nashville area.',
   },
   booking: {
@@ -42,23 +38,23 @@ export const defaultContent = {
     sourceLabel: '',
   },
   media: {
-    hero: media('jp-hero-03', 'A finished haircut by JP in the barber chair'),
-    portrait: media('jp-portrait', 'JP speaking to the camera'),
+    hero: media('jp-chair-hero', 'JP cutting a client’s hair in the barber chair'),
+    portrait: media('jp-chair-portrait', 'JP holding clippers at Faded University'),
     gallery: [
-      media('jp-cut-01', 'A client with clean lines after a cut by JP'),
-      media('jp-cut-02', 'A finished taper and styled locs by JP'),
-      media('jp-cut-03', 'A client showing a fresh fade by JP'),
-      media('jp-cut-04', 'A young client after a haircut by JP'),
-      media('jp-cut-05', 'A client smiling after a fresh cut by JP'),
-      media('jp-cut-06', 'A client with a sharp finished haircut by JP'),
-      media('jp-cut-07', 'A finished cut and braided style by JP'),
-      media('jp-cut-08', 'A clean fade completed by JP'),
+      media('jp-chair-work-01', 'A client with clean waves and sharp lines after a cut by JP'),
+      media('jp-chair-work-02', 'A client with a finished red curly fade by JP'),
+      media('jp-chair-work-03', 'A finished fade and styled locs by JP'),
+      media('jp-chair-about-02', 'JP at Faded University'),
+      media('jp-chair-about-03', 'JP training at Faded University'),
+      media('jp-chair-event-01', 'JP preparing a client for a formal event'),
+      media('jp-chair-event-02', 'A formal event haircut by JP'),
+      media('jp-chair-event-03', 'JP working with a client before an event'),
     ],
     beforeAfter: {
       enabled: true,
-      heading: 'Slide to see the difference.',
-      before: media('jp-before-01', 'A client before a haircut by JP'),
-      after: media('jp-after-01', 'The same client after a haircut by JP'),
+      heading: 'Drag to see the transformation.',
+      before: media('jp-chair-before', 'A client before a haircut by JP'),
+      after: media('jp-chair-after', 'The same client after a haircut by JP'),
     },
   },
   featured: {
@@ -66,7 +62,7 @@ export const defaultContent = {
     type: 'instagram',
     heading: 'From JP',
     url: 'https://www.instagram.com/reel/DX1nfUogdFn/',
-    posterUrl: '/media/defaults/jp-cut-02.webp',
+    posterUrl: '/media/defaults/jp-chair-work-02.webp',
   },
   story: {
     heading: 'Meet JP.',
@@ -87,9 +83,6 @@ export const defaultContent = {
     tiktokUrl: 'https://www.tiktok.com/@jpcuuts',
     youtubeUrl: 'https://www.youtube.com/@jpcuuts',
   },
-  settings: {
-    defaultSkin: 'cut-record',
-  },
 }
 
 function migrateContent(incoming) {
@@ -98,19 +91,21 @@ function migrateContent(incoming) {
   return {
     ...incoming,
     version: defaultContent.version,
-    brand: defaultContent.brand,
-    hero: defaultContent.hero,
-    booking: defaultContent.booking,
-    services: defaultContent.services,
-    facts: defaultContent.facts,
-    proof: defaultContent.proof,
-    media: {
-      ...incoming.media,
-      beforeAfter: defaultContent.media.beforeAfter,
+    hero: {
+      ...defaultContent.hero,
+      ...incoming.hero,
+      headline: incoming.hero?.headline
+        || incoming.hero?.headlines?.cutRecord
+        || defaultContent.hero.headline,
     },
-    story: defaultContent.story,
-    events: defaultContent.events,
-    contact: defaultContent.contact,
+    media: {
+      ...defaultContent.media,
+      ...incoming.media,
+      beforeAfter: {
+        ...defaultContent.media.beforeAfter,
+        ...incoming.media?.beforeAfter,
+      },
+    },
   }
 }
 

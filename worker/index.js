@@ -543,8 +543,7 @@ function validateContent(content) {
   if (!content || typeof content !== 'object' || Array.isArray(content)) throw responseError('Content must be an object', 400)
   const required = [
     ['brand.publicName', 80], ['brand.verseQuote', 180], ['brand.verseReference', 80],
-    ['hero.eyebrow', 120], ['hero.headlines.cutRecord', 90],
-    ['hero.headlines.jpInChair', 90], ['hero.headlines.openChair', 90], ['hero.intro', 360],
+    ['hero.eyebrow', 120], ['hero.headline', 90], ['hero.intro', 360],
     ['booking.label', 50], ['story.heading', 120], ['story.body', 700],
     ['facts.priceRange', 30], ['facts.location', 80], ['facts.mobile', 60],
     ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],

@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { mergeContent } from './siteContent'
 
-const previewSkins = [
-  ['cut-record', '01 — The Cut Record'],
-  ['jp-in-chair', '02 — JP in the Chair'],
-  ['open-chair', '03 — The Open Chair'],
-]
-
 async function api(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'same-origin',
@@ -103,22 +97,18 @@ export function Editor({ defaults }) {
       </header>
       <div className="editor-layout">
         <aside>
-          <p className="editor-kicker">Current working layouts</p>
-          {previewSkins.map(([id, label]) => <a key={id} href={`/?skin=${id}`} target="_blank" rel="noreferrer">{label} ↗</a>)}
-          <p className="editor-help">One shared content record will carry into the selected JP Cuts design. Empty optional sections stay hidden.</p>
+          <p className="editor-kicker">Current preview</p>
+          <a href="/" target="_blank" rel="noreferrer">Open The Chair ↗</a>
+          <p className="editor-help">This content publishes directly into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
-          <EditorSection title="Basics" description="Name, booking, positioning, and temporary preview headlines.">
+          <EditorSection title="Basics" description="Name, booking, positioning, and the main headline.">
             <div className="field-grid two">
               <Field label="Public name" value={content.brand.publicName} onChange={(value) => update('brand.publicName', value)} maxLength={80} />
               <Field label="Hero eyebrow" value={content.hero.eyebrow} onChange={(value) => update('hero.eyebrow', value)} maxLength={120} />
             </div>
             <Field label="Shared introduction" value={content.hero.intro} onChange={(value) => update('hero.intro', value)} textarea maxLength={360} />
-            <div className="field-grid three">
-              <Field label="01 headline" value={content.hero.headlines.cutRecord} onChange={(value) => update('hero.headlines.cutRecord', value)} maxLength={90} />
-              <Field label="02 headline" value={content.hero.headlines.jpInChair} onChange={(value) => update('hero.headlines.jpInChair', value)} maxLength={90} />
-              <Field label="03 headline" value={content.hero.headlines.openChair} onChange={(value) => update('hero.headlines.openChair', value)} maxLength={90} />
-            </div>
+            <Field label="Hero headline" value={content.hero.headline} onChange={(value) => update('hero.headline', value)} maxLength={90} />
             <div className="field-grid two">
               <Field label="Booking button" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
               <Field label="Booking URL" type="url" value={content.booking.url} onChange={(value) => update('booking.url', value)} maxLength={500} />

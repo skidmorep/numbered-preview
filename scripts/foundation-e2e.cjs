@@ -11,7 +11,7 @@ async function main() {
 
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
-    await page.goto(`${baseUrl}/?skin=cut-record`, { waitUntil: 'networkidle' })
+    await page.goto(baseUrl, { waitUntil: 'networkidle' })
 
     const booking = page.locator('a[href="https://calendly.com/jpcuts/30mins"]')
     const visibleBooking = await booking.evaluateAll((nodes) => nodes.some((node) => {
@@ -44,9 +44,9 @@ async function main() {
       title: document.title,
       width: innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      publicName: document.querySelector('.n-brand')?.textContent.trim(),
+      publicName: document.querySelector('.chair-brand strong')?.textContent.trim(),
       emailLink: document.querySelector('a[href="mailto:jp@jpcuuts.com"]')?.textContent.trim(),
-      verse: document.querySelector('.n-story blockquote')?.textContent.trim(),
+      verse: document.querySelector('.chair-about blockquote')?.textContent.trim(),
     }))
     if (publicState.scrollWidth > publicState.width + 1) throw new Error('Public page overflows horizontally')
     if (publicState.publicName !== 'JP CUTS') throw new Error('JP Cuts public name is missing')

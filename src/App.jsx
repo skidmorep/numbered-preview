@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import './site.css'
-import './public-mobile.css'
+import './chair.css'
 import { defaultContent, mergeContent } from './siteContent'
-import { PublicSite } from './PublicSiteMobile'
+import { PublicSite } from './TheChairSite'
 import { Editor } from './Editor'
 
 function App() {
