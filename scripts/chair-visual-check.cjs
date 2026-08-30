@@ -27,6 +27,7 @@ async function main() {
   }
   const browser = await chromium.launch({ headless: true })
   const report = []
+  const featuredReport = []
 
   try {
     for (const viewport of viewports) {
@@ -111,6 +112,54 @@ async function main() {
       report.push({ viewport, status: response.status(), ...metrics, mobileMenuGeometry, heroShot, fullShot })
       await page.close()
     }
+
+    for (const variant of [
+      {
+        type: 'instagram',
+        heading: 'Instagram featured proof',
+        url: 'https://www.instagram.com/reel/Proof123/',
+        expectedTag: 'A',
+        expectedMediaTag: 'IMG',
+      },
+      {
+        type: 'video',
+        heading: 'Video featured proof',
+        url: '/proof-feature.webm',
+        expectedTag: 'FIGURE',
+        expectedMediaTag: 'VIDEO',
+      },
+      {
+        type: 'image',
+        heading: 'Image featured proof',
+        url: editorContent.media.gallery[0].url,
+        expectedTag: 'FIGURE',
+        expectedMediaTag: 'IMG',
+      },
+    ]) {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
+      const variantContent = structuredClone(editorContent)
+      variantContent.featured = { ...variantContent.featured, ...variant }
+      await page.route('**/api/content', (route) => route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ content: variantContent }),
+      }))
+      await page.goto(baseUrl, { waitUntil: 'networkidle' })
+      const featured = page.locator('.chair-featured')
+      await featured.scrollIntoViewIfNeeded()
+      const result = await featured.evaluate((node) => {
+        const media = node.querySelector('img, video')
+        return {
+          visible: node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0,
+          tag: node.tagName,
+          mediaTag: media?.tagName,
+          url: node.tagName === 'A' ? node.getAttribute('href') : media?.getAttribute('src'),
+          text: node.textContent.trim(),
+        }
+      })
+      featuredReport.push({ variant, ...result })
+      await page.close()
+    }
   } finally {
     await browser.close()
   }
@@ -133,9 +182,18 @@ async function main() {
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1)) ||
     item.headline !== 'Your cut. Dialed in.'
   )
-  fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))
-  if (failures.length) throw new Error(`Responsive checks failed: ${JSON.stringify(failures, null, 2)}`)
-  console.log(`The Chair responsive checks passed at ${report.length} viewports.`)
+  const featuredFailures = featuredReport.filter((item) =>
+    !item.visible ||
+    item.tag !== item.variant.expectedTag ||
+    item.mediaTag !== item.variant.expectedMediaTag ||
+    item.url !== item.variant.url ||
+    !item.text.includes(item.variant.heading)
+  )
+  fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, featuredReport, failures, featuredFailures }, null, 2))
+  if (failures.length || featuredFailures.length) {
+    throw new Error(`The Chair checks failed: ${JSON.stringify({ failures, featuredFailures }, null, 2)}`)
+  }
+  console.log(`The Chair responsive checks passed at ${report.length} viewports with all 3 featured media types.`)
 }
 
 main().catch((error) => {
