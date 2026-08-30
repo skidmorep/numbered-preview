@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { mergeContent } from './siteContent'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { imageFocusStyle, mergeContent } from './siteContent'
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -84,9 +84,15 @@ export function Editor({ defaults }) {
   }
 
   const logout = async () => {
-    await api('/api/logout', { method: 'POST', body: '{}' }).catch(() => {})
-    setView('login')
-    setUser(null)
+    setStatus('Signing out…')
+    try {
+      await api('/api/logout', { method: 'POST', body: '{}' })
+      setView('login')
+      setUser(null)
+      setStatus('')
+    } catch (error) {
+      setStatus(`Could not sign out. ${error.message}`)
+    }
   }
 
   return (
@@ -121,13 +127,7 @@ export function Editor({ defaults }) {
 
           <EditorSection title="Photos" description="Replace the hero, JP portrait, before/after pair, or gallery with approved JP Cuts images. The Instagram Reel is fixed.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
-            <div className="media-preview-grid">
-              <MediaPreview label="Hero" asset={content.media.hero} />
-              <MediaPreview label="JP portrait" asset={content.media.portrait} />
-              <MediaPreview label="Before" asset={content.media.beforeAfter.before} />
-              <MediaPreview label="After" asset={content.media.beforeAfter.after} />
-              {content.media.gallery.map((asset, index) => <MediaPreview key={`${asset.url}-${index}`} label={`Gallery ${index + 1}`} asset={asset} />)}
-            </div>
+            <MediaFocusManager content={content} update={update} />
             <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
             <Field label="Before/after heading" value={content.media.beforeAfter.heading} onChange={(value) => update('media.beforeAfter.heading', value)} maxLength={120} />
             <p className="editor-help">The approved @jpcuuts Reel stays embedded on the homepage.</p>
@@ -211,8 +211,98 @@ function MediaUploader({ content, update, setStatus }) {
   return <form className="media-uploader" onSubmit={upload}><label className="field"><span>Replace</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{targets.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span>File</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><Field label="Image alt text" value={alt} onChange={setAlt} maxLength={180} /><button type="submit">Upload</button><p>Images: 6 MB max. JPEG, PNG, WebP, or AVIF.</p></form>
 }
 
-function MediaPreview({ label, asset }) {
-  return <figure className="media-preview">{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" />}<figcaption><b>{label}</b><span>{asset?.alt || 'No alt text'}</span></figcaption></figure>
+function mediaEntries(content) {
+  return [
+    { id: 'hero', label: 'Hero', path: 'media.hero', asset: content.media.hero },
+    { id: 'portrait', label: 'JP portrait', path: 'media.portrait', asset: content.media.portrait },
+    { id: 'before', label: 'Before', path: 'media.beforeAfter.before', asset: content.media.beforeAfter.before },
+    { id: 'after', label: 'After', path: 'media.beforeAfter.after', asset: content.media.beforeAfter.after },
+    ...content.media.gallery.map((asset, index) => ({ id: `gallery-${index}`, label: `Gallery ${index + 1}`, path: `media.gallery.${index}`, asset })),
+  ]
+}
+
+function MediaFocusManager({ content, update }) {
+  const entries = mediaEntries(content)
+  const [selectedId, setSelectedId] = useState('hero')
+  const selected = entries.find((entry) => entry.id === selectedId) || entries[0]
+
+  return <div className="media-focus-manager">
+    <div className="media-preview-grid">
+      {entries.map((entry) => <MediaPreview key={entry.id} {...entry} selected={entry.id === selected.id} onEdit={() => setSelectedId(entry.id)} />)}
+    </div>
+    <FocusPointEditor label={selected.label} path={selected.path} asset={selected.asset} update={update} />
+  </div>
+}
+
+function MediaPreview({ label, asset, selected, onEdit }) {
+  return <figure className={`media-preview ${selected ? 'is-selected' : ''}`}>{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" style={imageFocusStyle(asset)} />}<figcaption><b>{label}</b><span>{asset?.alt || 'No alt text'}</span><button type="button" aria-pressed={selected} onClick={onEdit}>{selected ? 'Editing focus' : 'Edit focus'}</button></figcaption></figure>
+}
+
+function FocusPointEditor({ label, path, asset, update }) {
+  const frameRef = useRef(null)
+  const activePointer = useRef(null)
+  const focus = asset?.focus || { x: 50, y: 50 }
+  const descriptionId = `focus-help-${path.replace(/[^a-z0-9]+/gi, '-')}`
+  const setPoint = (x, y) => update(`${path}.focus`, {
+    x: Math.min(100, Math.max(0, Math.round(x))),
+    y: Math.min(100, Math.max(0, Math.round(y))),
+  })
+  const setFromPointer = (event) => {
+    const bounds = frameRef.current?.getBoundingClientRect()
+    if (!bounds) return
+    setPoint(((event.clientX - bounds.left) / bounds.width) * 100, ((event.clientY - bounds.top) / bounds.height) * 100)
+  }
+  const startPointer = (event) => {
+    activePointer.current = event.pointerId
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setFromPointer(event)
+  }
+  const movePointer = (event) => {
+    if (activePointer.current !== event.pointerId) return
+    setFromPointer(event)
+  }
+  const endPointer = (event) => {
+    if (activePointer.current !== event.pointerId) return
+    activePointer.current = null
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+  const moveFromKeyboard = (event) => {
+    const step = event.shiftKey ? 5 : 1
+    const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }
+    const move = moves[event.key]
+    if (!move) return
+    event.preventDefault()
+    setPoint(focus.x + move[0], focus.y + move[1])
+  }
+
+  return <section className="focus-editor" aria-labelledby={`${descriptionId}-title`}>
+    <header><div><p className="editor-kicker">Image focus</p><h3 id={`${descriptionId}-title`}>{label}</h3></div><p>{focus.x}% across · {focus.y}% down</p></header>
+    <p id={descriptionId} className="editor-help">Tap or drag the target. Arrow keys move one point; hold Shift for five.</p>
+    <button
+      ref={frameRef}
+      type="button"
+      className="focus-canvas"
+      aria-label={`${label} focus point, ${focus.x}% across and ${focus.y}% down`}
+      aria-describedby={descriptionId}
+      onPointerDown={startPointer}
+      onPointerMove={movePointer}
+      onPointerUp={endPointer}
+      onPointerCancel={endPointer}
+      onKeyDown={moveFromKeyboard}
+    >
+      <img src={asset?.url} alt="" style={imageFocusStyle(asset)} />
+      <span className="focus-target" style={{ left: `${focus.x}%`, top: `${focus.y}%` }} aria-hidden="true" />
+    </button>
+    <div className="focus-ranges">
+      <label><span>Horizontal <output>{focus.x}%</output></span><input type="range" min="0" max="100" value={focus.x} onChange={(event) => setPoint(Number(event.target.value), focus.y)} /></label>
+      <label><span>Vertical <output>{focus.y}%</output></span><input type="range" min="0" max="100" value={focus.y} onChange={(event) => setPoint(focus.x, Number(event.target.value))} /></label>
+      <button type="button" onClick={() => setPoint(50, 50)}>Reset to center</button>
+    </div>
+    <div className="focus-crops" aria-label="Crop previews">
+      <figure><div className="is-phone"><img src={asset?.url} alt="" style={imageFocusStyle(asset)} /></div><figcaption>iPhone hero</figcaption></figure>
+      <figure><div className="is-laptop"><img src={asset?.url} alt="" style={imageFocusStyle(asset)} /></div><figcaption>MacBook crop</figcaption></figure>
+    </div>
+  </section>
 }
 
 function OwnerAccess({ setStatus }) {

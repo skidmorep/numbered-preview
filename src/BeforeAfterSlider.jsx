@@ -1,4 +1,5 @@
 import { useId, useRef, useState } from 'react'
+import { imageFocusStyle } from './siteContent'
 
 export function BeforeAfterSlider({ before, after, heading = 'Before and after' }) {
   const [position, setPosition] = useState(50)
@@ -61,8 +62,8 @@ export function BeforeAfterSlider({ before, after, heading = 'Before and after' 
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-        <img className="before-after-image is-after" src={after.url} alt={after.alt || ''} loading="lazy" />
-        <img className="before-after-image is-before" src={before.url} alt={before.alt || ''} loading="lazy" />
+        <img className="before-after-image is-after" src={after.url} alt={after.alt || ''} loading="lazy" style={imageFocusStyle(after)} />
+        <img className="before-after-image is-before" src={before.url} alt={before.alt || ''} loading="lazy" style={imageFocusStyle(before)} />
         <div className="before-after-divider" aria-hidden="true"><span>↔</span></div>
         <input
           type="range"

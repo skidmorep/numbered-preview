@@ -137,7 +137,6 @@
 .chair-hero > img {
   z-index: -2;
   object-fit: cover;
-  object-position: 53% center;
 }
 
 .chair-hero-shade {
@@ -410,7 +409,6 @@
 }
 
 .chair-about-images .about-main { grid-row: 1 / -1; }
-.chair-about-images .about-main img { object-position: center 18%; }
 
 .chair-about blockquote {
   margin: 0;
@@ -584,7 +582,6 @@
   aspect-ratio: 4 / 5;
 }
 
-.chair-booking > .chair-photo img { object-position: 54% center; }
 
 .chair-booking > div {
   display: grid;
@@ -772,7 +769,6 @@
   .chair-mobile-menu,
   .chair-mobile-book { display: none; }
   .chair-hero { min-height: 760px; height: min(900px, 100svh); }
-  .chair-hero > img { object-position: center 43%; }
   .chair-hero-copy { gap: 22px; padding: 180px 3vw 126px; }
   .chair-hero h1 { font-size: clamp(6rem, 8.5vw, 9rem); max-width: 9ch; -webkit-text-stroke-width: 2px; }
   .chair-camo { min-height: 52px; border-width: 6px; }

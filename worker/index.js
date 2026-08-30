@@ -41,7 +41,7 @@ export async function handleRequest(request, env, context) {
     if (request.method === 'OPTIONS') return finalize(new Response(null, { status: 204 }))
     const route = `${request.method} ${url.pathname.replace(/\/$/, '') || '/'}`
     const routes = {
-      'GET /login': () => loginPage('', 200, url.searchParams.get('reset') === '1' ? 'Password saved. Sign in with it now.' : ''),
+      'GET /login': () => loginPage('', 200, url.searchParams.get('reset') === '1' ? 'Password saved. Sign in with it now.' : '', loginDestination(url.searchParams.get('next'))),
       'POST /login': () => browserLogin(request, env),
       'GET /claim': () => claimPage(),
       'POST /claim': () => claimPassword(request, env, { renderPage: claimPage, invalidMessage: 'That recovery code is invalid or expired' }),
@@ -90,7 +90,7 @@ async function sessionOrLoginPage(request, env) {
   catch (error) {
     if (!(error instanceof Response) || error.status !== 401) throw error
     if (request.method !== 'GET' && request.method !== 'HEAD') return error
-    return loginPage()
+    return loginPage('', 200, '', loginDestination(new URL(request.url).pathname))
   }
 }
 
@@ -157,12 +157,14 @@ async function createSession(env, user) {
 
 async function browserLogin(request, env) {
   assertMutationOrigin(request)
+  let next = '/'
   try {
     const form = await readForm(request, 4_000)
+    next = loginDestination(form.get('next'))
     const identifier = String(form.get('identifier') || '').trim().toLowerCase()
     const password = String(form.get('password') || '')
     const authenticated = await authenticate(request, env, identifier, password)
-    const destination = authenticated.user.force_password_change ? '/admin/' : '/'
+    const destination = authenticated.user.force_password_change ? '/admin/' : next
     return new Response(null, {
       status: 303,
       headers: { location: destination, 'set-cookie': sessionCookie(authenticated.token, SESSION_TTL_SECONDS) },
@@ -170,7 +172,7 @@ async function browserLogin(request, env) {
   } catch (error) {
     if (!(error instanceof Response)) throw error
     const message = await error.json().then((body) => body.error).catch(() => 'Sign-in failed')
-    return loginPage(message, error.status)
+    return loginPage(message, error.status, '', next)
   }
 }
 
@@ -536,7 +538,7 @@ async function uploadMedia(request, env) {
   await env.DB.prepare(
     'insert into site_media (id, object_key, media_type, byte_size, alt_text, created_by, created_at) values (?, ?, ?, ?, ?, ?, ?)',
   ).bind(crypto.randomUUID(), key, detectedType, file.size, alt, auth.user.id, nowIso()).run()
-  return json({ ok: true, asset: { type: config.kind, url: `/uploads/${key}`, alt } }, 201)
+  return json({ ok: true, asset: { type: config.kind, url: `/uploads/${key}`, alt, focus: { x: 50, y: 50 } } }, 201)
 }
 
 async function createUser(request, env) {
@@ -687,7 +689,10 @@ function validateContent(content) {
   media.forEach((asset, index) => {
     if (!asset?.url) return
     optionalMediaUrl(asset.url, `Media ${index + 1}`)
-    if (asset.type === 'image') plainText(asset.alt, `Media ${index + 1} alt text`, 180)
+    if (asset.type === 'image') {
+      plainText(asset.alt, `Media ${index + 1} alt text`, 180)
+      focusPoint(asset.focus, `Media ${index + 1} focus point`)
+    }
   })
   if (beforeAfter?.enabled && (!beforeAfter.before?.url || !beforeAfter.after?.url)) {
     throw responseError('Before and after images are required when the slider is enabled', 400)
@@ -719,6 +724,14 @@ function optionalMediaUrl(value, label) {
   if (!value) return
   if (/^\/(?:uploads|media\/defaults)\/[A-Za-z0-9._/-]+$/.test(value)) return
   requireUrl(value, ['https:'], label)
+}
+function focusPoint(value, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw responseError(`${label} is required`, 400)
+  for (const axis of ['x', 'y']) {
+    if (typeof value[axis] !== 'number' || !Number.isFinite(value[axis]) || value[axis] < 0 || value[axis] > 100) {
+      throw responseError(`${label} must use numeric coordinates from 0 to 100`, 400)
+    }
+  }
 }
 
 export async function detectMediaType(file) {
@@ -851,10 +864,12 @@ function authPage({ eyebrow, title, intro, action = '', fields = '', error = '',
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'same-origin' },
   })
 }
-function loginPage(error = '', status = 200, notice = '') {
+function loginDestination(value) { return value === '/admin' || value === '/admin/' ? '/admin/' : '/' }
+function loginPage(error = '', status = 200, notice = '', next = '/') {
   return authPage({
     eyebrow: 'Private preview', title: 'Sign in', intro: 'Sign in with your email address and password.', action: 'Sign in', error, notice, status,
-    fields: '<label class="field"><span>Email or username</span><input name="identifier" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>',
+    fields: `<input name="next" type="hidden" value="${loginDestination(next)}"><label class="field"><span>Email or username</span><input name="identifier" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label class="field"><span>Password</span><input name="password" type="password" autocomplete="current-password" maxlength="128" required></label>`,
+    formAttributes: 'action="/login/"',
     footer: '<a href="/forgot-password/">Forgot password?</a>',
   })
 }

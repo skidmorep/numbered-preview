@@ -8,7 +8,7 @@ import {
   YoutubeLogo,
 } from '@phosphor-icons/react'
 import { BeforeAfterSlider } from './BeforeAfterSlider'
-import { instagramEmbedUrl } from './siteContent'
+import { imageFocusStyle, instagramEmbedUrl } from './siteContent'
 
 const socialLinks = [
   ['instagramUrl', 'Instagram', InstagramLogo],
@@ -85,7 +85,7 @@ function SiteHeader({ content }) {
 function Hero({ content }) {
   return (
     <section className="chair-hero" aria-labelledby="chair-hero-heading">
-      <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" />
+      <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" style={imageFocusStyle(content.media.hero)} />
       <div className="chair-hero-shade" aria-hidden="true" />
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
@@ -294,7 +294,7 @@ function CamoAccent({ compact = false }) {
 
 function Photo({ asset, className = '' }) {
   if (!asset?.url) return null
-  return <figure className={`chair-photo ${className}`}><img src={asset.url} alt={asset.alt || ''} loading="lazy" /></figure>
+  return <figure className={`chair-photo ${className}`}><img src={asset.url} alt={asset.alt || ''} loading="lazy" style={imageFocusStyle(asset)} /></figure>
 }
 
 function FeaturedMedia({ content }) {

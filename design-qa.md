@@ -34,9 +34,11 @@
 
 ## Release review
 
-- The v2-to-v3 content migration preserves existing owner edits while selecting the approved Chair headline.
+- The v3-to-v4 content migration preserves the allowed owner headline, labels, service notes, before/after state, media references, alt text, and order while enforcing the approved JP Cuts facts.
 - Every field still exposed in the editor now renders on the public Chair site, including all featured-media types.
+- Every editable image has one bounded focus point. The selected-image editor provides a draggable 46px target, labelled horizontal and vertical ranges, keyboard movement, numeric values, a center reset, and simultaneous iPhone/MacBook hero previews.
+- The same saved focus point renders through inline `object-position` on the hero, repeated booking hero, portrait, gallery, event/team images, and both comparison layers.
 - A mobile CSS cascade that exposed a duplicate header booking button was fixed. The responsive harness now opens the menu and rejects tall, overlapping mobile headers.
-- Lint, 18 Worker tests, the production build, four responsive Chair viewports, the authenticated foundation flow, and the high-severity dependency audit pass.
+- Lint, 29 Worker tests, the production build, four responsive Chair viewports, and the 390×844 touch/scroll/keyboard comparison flow pass locally. Authenticated production verification is recorded in the release handoff, not claimed by this local design file.
 
 **final result: passed**

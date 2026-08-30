@@ -41,12 +41,13 @@ Remote visual and editor checks require an owner session or the existing owner c
 
 ## Content and media rules
 
-- The editor supports the hero headline and booking label, notes for the two approved services, approved replacement photos, the before/after heading, and the event-form button label.
+- The editor supports the hero headline and booking label, notes for the two approved services, approved replacement photos, per-image focus points, the before/after heading, and the event-form button label.
 - The approved Instagram Reel is fixed and embedded on the homepage.
 - The public page omits JP's phone number and email address. Event inquiries use the accordion form and the Worker keeps the delivery address server-side.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.
 - Videos must be MP4 or WebM and no larger than 15 MB.
 - Images require alt text before upload.
+- Each published image carries a numeric `focus` point from 0–100 on both axes. Legacy owner media is normalized one asset at a time so URLs, alt text, array order, and copy remain intact.
 - Empty optional sections stay hidden.
 - Published content writes a new revision; simultaneous stale saves are rejected.
 
@@ -59,6 +60,7 @@ JP approved the selected client, wedding, and team photographs in the shared Dro
 ## Account handoff and recovery
 
 - Owners sign in with their email address and password.
+- The root and admin login shells post explicitly to `/login/`, then return only to the allowlisted public or admin destination. Signing out clears that session without invalidating another active owner context.
 - The login screen links to `/forgot-password/`, where the user requests a reset link by email. Normal sign-in never uses email OTP.
 - The public response does not reveal whether an account exists. Requests are throttled by hashed email and IP keys.
 - Reset links expire after 30 minutes and work once. The raw token stays in the URL fragment, is moved into the reset form in the browser, and is never sent in a GET request or stored in D1.

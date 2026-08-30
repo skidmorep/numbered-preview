@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { defaultContent, mergeContent } from '../src/siteContent.js'
+import { defaultContent, imageFocusStyle, mergeContent } from '../src/siteContent.js'
 import { detectMediaType, handleRequest, parseByteRange, validateContent } from './index.js'
 
 const sessionToken = 'test-session-token-with-enough-entropy'
@@ -19,6 +19,8 @@ test('bundled content passes the Worker validation contract', () => {
   ])
   assert.match(defaultContent.facts.mobile, /Middle Tennessee/)
   assert.equal(defaultContent.media.beforeAfter.enabled, true)
+  assert.deepEqual(defaultContent.media.hero.focus, { x: 53, y: 43 })
+  assert.deepEqual(imageFocusStyle(defaultContent.media.hero), { objectPosition: '53% 43%' })
 })
 
 test('legacy content migration preserves the chosen headline while enforcing approved JP Cuts facts and media', () => {
@@ -54,6 +56,22 @@ test('legacy content migration preserves the chosen headline while enforcing app
   assert.equal(migrated.contact.email, undefined)
   assert.equal(migrated.events.actionUrl, undefined)
   assert.doesNotMatch(JSON.stringify(migrated), /Unused second headline/)
+  assert.deepEqual(migrated.media.hero.focus, defaultContent.media.hero.focus)
+})
+
+test('current owner media gains safe focus defaults without replacing URLs, alt text, order, or copy', () => {
+  const stored = structuredClone(defaultContent)
+  stored.media.hero = { type: 'image', url: '/uploads/11111111-1111-1111-1111-111111111111.webp', alt: 'Owner hero' }
+  stored.media.gallery = stored.media.gallery.map((asset, index) => ({ ...asset, url: `/uploads/${String(index + 1).padStart(8, '0')}-1111-1111-1111-111111111111.webp` }))
+  stored.media.gallery[2] = { ...stored.media.gallery[2], focus: { x: 19, y: 81 } }
+
+  const merged = mergeContent(stored)
+  assert.equal(merged.media.hero.url, stored.media.hero.url)
+  assert.equal(merged.media.hero.alt, 'Owner hero')
+  assert.deepEqual(merged.media.hero.focus, defaultContent.media.hero.focus)
+  assert.deepEqual(merged.media.gallery.map((asset) => asset.url), stored.media.gallery.map((asset) => asset.url))
+  assert.deepEqual(merged.media.gallery[0].focus, defaultContent.media.gallery[0].focus)
+  assert.deepEqual(merged.media.gallery[2].focus, { x: 19, y: 81 })
 })
 
 test('content validation rejects unsafe URLs, markup, excess galleries, and missing alt text', async (t) => {
@@ -85,6 +103,17 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     const content = structuredClone(defaultContent)
     content.media.beforeAfter.after.alt = ''
     assertResponseError(() => validateContent(content), 400)
+  })
+
+  await t.test('image focus points require finite numeric coordinates from 0 to 100', () => {
+    for (const focus of [undefined, null, { x: '50', y: 50 }, { x: -1, y: 50 }, { x: 50, y: 101 }, { x: Number.NaN, y: 50 }]) {
+      const content = structuredClone(defaultContent)
+      content.media.hero.focus = focus
+      assertResponseError(() => validateContent(content), 400)
+    }
+    const content = structuredClone(defaultContent)
+    content.media.hero.focus = { x: 0, y: 100 }
+    assert.equal(validateContent(content), true)
   })
 
   await t.test('social links reject executable protocols', () => {
@@ -147,6 +176,8 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     assert.match(response.headers.get('content-type'), /^text\/html/)
     assert.match(html, /Private preview/)
     assert.match(html, /Sign in with your email address and password/)
+    assert.match(html, /<form[^>]+action="\/login\/"/)
+    assert.match(html, new RegExp(`name="next" type="hidden" value="${path === '/admin/' ? '/admin/' : '/'}"`))
     assert.doesNotMatch(html, /email.{0,20}(?:OTP|code)/i)
     assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
   }
@@ -439,6 +470,21 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   assert.equal(upload.status, 401)
 })
 
+test('accepted image uploads receive a centered focus point', async () => {
+  const form = new FormData()
+  form.append('file', new File([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])], 'approved.jpg', { type: 'image/jpeg' }))
+  form.append('alt', 'Approved image')
+
+  const response = await handleRequest(new Request('https://numbered.test/api/admin/media', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', cookie: sessionCookie },
+    body: form,
+  }), authenticatedEnv())
+
+  assert.equal(response.status, 201)
+  assert.deepEqual((await response.json()).asset.focus, { x: 50, y: 50 })
+})
+
 test('one-time emailed recovery chooses a password, revokes sessions, and requires a fresh login', async () => {
   const env = inviteEnv()
   const body = new URLSearchParams({
@@ -457,7 +503,7 @@ test('one-time emailed recovery chooses a password, revokes sessions, and requir
   assert.equal(claimed.headers.get('set-cookie'), null)
   assert.equal(env.state.inviteUsed, true)
   assert.match(env.state.passwordHash, /^pbkdf2-sha256\$100000\$/)
-  assert.equal(env.state.sessionCount, 0)
+  assert.equal(env.state.sessions.size, 0)
 
   const freshLoginPage = await handleRequest(new Request('https://numbered.test/login/?reset=1'), untouchedBindings().env)
   assert.match(await freshLoginPage.text(), /Password saved\. Sign in with it now\./)
@@ -482,13 +528,63 @@ test('one-time emailed recovery chooses a password, revokes sessions, and requir
   assert.equal(loginResponse.status, 200)
   assert.equal((await loginResponse.json()).user.role, 'owner')
   assert.match(loginResponse.headers.get('set-cookie'), /HttpOnly; Secure; SameSite=Strict/)
-  assert.equal(env.state.sessionCount, 1)
+  assert.equal(env.state.sessions.size, 1)
+})
+
+test('the same password supports logout, repeat login, and an isolated concurrent context', async () => {
+  const env = inviteEnv()
+  const password = 'same-existing-password-123'
+  const reset = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: 'one-time-private-setup-code-with-entropy-1234567890', password, confirmation: password }),
+  }), env)
+  assert.equal(reset.status, 303)
+
+  const signIn = () => handleRequest(new Request('https://numbered.test/login/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': '203.0.113.50' },
+    body: new URLSearchParams({ identifier: 'skidmore@parabolos.com', password }),
+  }), env)
+  const sessionRequest = (cookie) => handleRequest(new Request('https://numbered.test/api/session', { headers: { cookie } }), env)
+
+  const firstLogin = await signIn()
+  assert.equal(firstLogin.status, 303)
+  const firstCookie = firstLogin.headers.get('set-cookie').split(';')[0]
+  assert.equal((await sessionRequest(firstCookie)).status, 200)
+
+  const logout = await handleRequest(new Request('https://numbered.test/api/logout', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', cookie: firstCookie },
+  }), env)
+  assert.equal(logout.status, 200)
+  assert.match(logout.headers.get('set-cookie'), /Max-Age=0/)
+  assert.equal((await sessionRequest(firstCookie)).status, 401)
+
+  const secondLogin = await signIn()
+  const secondCookie = secondLogin.headers.get('set-cookie').split(';')[0]
+  assert.equal(secondLogin.status, 303)
+  assert.notEqual(secondCookie, firstCookie)
+  assert.equal((await sessionRequest(secondCookie)).status, 200)
+
+  const isolatedLogin = await signIn()
+  const isolatedCookie = isolatedLogin.headers.get('set-cookie').split(';')[0]
+  assert.equal(isolatedLogin.status, 303)
+  assert.notEqual(isolatedCookie, secondCookie)
+  assert.equal((await sessionRequest(isolatedCookie)).status, 200)
+
+  await handleRequest(new Request('https://numbered.test/api/logout', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', cookie: secondCookie },
+  }), env)
+  assert.equal((await sessionRequest(secondCookie)).status, 401)
+  assert.equal((await sessionRequest(isolatedCookie)).status, 200)
 })
 
 function authenticatedEnv(siteContent = null) {
   return {
     ASSETS: { fetch: async () => new Response('site') },
-    MEDIA: { head: async () => null, get: async () => null },
+    MEDIA: { head: async () => null, get: async () => null, put: async () => {} },
     DB: {
       prepare(sql) {
         return {
@@ -504,6 +600,7 @@ function authenticatedEnv(siteContent = null) {
             if (sql.includes('from site_state')) return siteContent ? { content_json: JSON.stringify(siteContent), revision: 9 } : null
             throw new Error(`Unexpected query: ${sql}`)
           },
+          async run() { return { meta: { changes: 1 } } },
         }
       },
     },
@@ -554,7 +651,7 @@ function resetRequestEnv({ userExists = true } = {}) {
 }
 
 function inviteEnv() {
-  const state = { inviteUsed: false, passwordHash: '', sessionCount: 0 }
+  const state = { inviteUsed: false, passwordHash: '', sessions: new Map() }
   const user = {
     id: 'owner-1', username: 'skidmore@parabolos.com', email: 'skidmore@parabolos.com',
     password_hash: '', role: 'owner', force_password_change: 1, disabled: 0,
@@ -576,6 +673,9 @@ function inviteEnv() {
               return state.inviteUsed ? null : { id: 'invite-1', user_id: user.id, matched_user_id: user.id, disabled: 0 }
             }
             if (sql.includes('from login_attempts')) return null
+            if (sql.includes('from admin_sessions')) {
+              return state.sessions.has(values[0]) ? { ...user, password_hash: state.passwordHash, force_password_change: 0, token_hash: values[0] } : null
+            }
             if (sql.includes('from admin_users where lower')) return { ...user, password_hash: state.passwordHash }
             if (sql.includes('from admin_users where id')) return { ...user, password_hash: state.passwordHash, force_password_change: 0 }
             throw new Error(`Unexpected query: ${sql}`)
@@ -589,8 +689,13 @@ function inviteEnv() {
               return { meta: { changes: 1 } }
             }
             if (sql.startsWith('update admin_users set password_hash')) state.passwordHash = values[0]
-            if (sql.startsWith('delete from admin_sessions')) state.sessionCount = 0
-            if (sql.startsWith('insert into admin_sessions')) state.sessionCount += 1
+            if (sql.startsWith('delete from admin_sessions')) {
+              if (sql.includes('where token_hash = ?')) state.sessions.delete(values[0])
+              else if (sql.includes('token_hash != ?')) {
+                for (const tokenHash of state.sessions.keys()) if (tokenHash !== values[1]) state.sessions.delete(tokenHash)
+              } else state.sessions.clear()
+            }
+            if (sql.startsWith('insert into admin_sessions')) state.sessions.set(values[2], { userId: values[1], expiresAt: values[3] })
             return { meta: { changes: 1 } }
           },
         }

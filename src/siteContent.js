@@ -1,7 +1,8 @@
-const media = (name, alt) => ({
+const media = (name, alt, focus = { x: 50, y: 50 }) => ({
   type: 'image',
   url: `/media/defaults/${name}.webp`,
   alt,
+  focus: { x: focus.x, y: focus.y },
 })
 
 export const defaultContent = {
@@ -38,8 +39,8 @@ export const defaultContent = {
     sourceLabel: '',
   },
   media: {
-    hero: media('jp-chair-hero', 'JP cutting a client’s hair in the barber chair'),
-    portrait: media('jp-chair-portrait', 'JP smiling and holding clippers at Faded University'),
+    hero: media('jp-chair-hero', 'JP cutting a client’s hair in the barber chair', { x: 53, y: 43 }),
+    portrait: media('jp-chair-portrait', 'JP smiling and holding clippers at Faded University', { x: 50, y: 18 }),
     gallery: [
       media('jp-chair-work-01', 'A client with clean waves and sharp lines after a cut by JP'),
       media('jp-chair-work-02', 'A client with a finished red curly fade by JP'),
@@ -135,8 +136,43 @@ function deepMerge(base, incoming) {
   )
 }
 
+const centeredFocus = { x: 50, y: 50 }
+
+function withFocus(asset, fallback) {
+  if (!asset || typeof asset !== 'object' || Array.isArray(asset)) return asset
+  if (Object.hasOwn(asset, 'focus')) return asset
+  const source = fallback?.focus || centeredFocus
+  return { ...asset, focus: { x: source.x, y: source.y } }
+}
+
+function normalizeMediaFocus(content) {
+  const mediaContent = content.media || {}
+  const beforeAfter = mediaContent.beforeAfter || {}
+  return {
+    ...content,
+    media: {
+      ...mediaContent,
+      hero: withFocus(mediaContent.hero, defaultContent.media.hero),
+      portrait: withFocus(mediaContent.portrait, defaultContent.media.portrait),
+      gallery: Array.isArray(mediaContent.gallery)
+        ? mediaContent.gallery.map((asset, index) => withFocus(asset, defaultContent.media.gallery[index]))
+        : defaultContent.media.gallery,
+      beforeAfter: {
+        ...beforeAfter,
+        before: withFocus(beforeAfter.before, defaultContent.media.beforeAfter.before),
+        after: withFocus(beforeAfter.after, defaultContent.media.beforeAfter.after),
+      },
+    },
+  }
+}
+
 export function mergeContent(incoming) {
-  return deepMerge(defaultContent, migrateContent(incoming) || {})
+  return normalizeMediaFocus(deepMerge(defaultContent, migrateContent(incoming) || {}))
+}
+
+export function imageFocusStyle(asset) {
+  const focus = asset?.focus || centeredFocus
+  return { objectPosition: `${focus.x}% ${focus.y}%` }
 }
 
 export function instagramEmbedUrl(url) {

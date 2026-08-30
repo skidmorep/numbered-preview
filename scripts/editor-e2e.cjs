@@ -1,31 +1,43 @@
 const { chromium } = require('playwright')
-const path = require('node:path')
 
 const baseUrl = process.env.NUMBERED_PREVIEW_URL
 const email = process.env.NUMBERED_OWNER_EMAIL
 const password = process.env.NUMBERED_OWNER_PASSWORD
-const previewUsername = process.env.NUMBERED_PREVIEW_USERNAME || 'preview'
-const previewPassword = process.env.NUMBERED_PREVIEW_PASSWORD
 
-if (!baseUrl || !email || !password || !previewPassword) throw new Error('Missing editor test environment')
+if (!baseUrl || !email || !password) throw new Error('Missing editor test environment')
 
 async function main() {
   const browser = await chromium.launch({
     executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     headless: true,
   })
-  const page = await browser.newPage({
-    viewport: { width: 1280, height: 900 },
-    httpCredentials: { username: previewUsername, password: previewPassword },
-  })
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+  const page = await context.newPage()
+  let isolatedContext
 
   try {
+    await loginFromRoot(page)
     await page.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Content editor' }).waitFor()
+
+    await page.getByRole('button', { name: 'Log out' }).click()
+    await page.getByRole('heading', { name: 'Sign in to edit' }).waitFor()
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Password').fill(password)
-    const initialContentResponse = page.waitForResponse((response) => response.url().endsWith('/api/admin/content'))
     await page.getByRole('button', { name: 'Sign in' }).click()
-    await initialContentResponse
+    await page.getByRole('heading', { name: 'Content editor' }).waitFor()
+
+    isolatedContext = await browser.newContext({ viewport: { width: 390, height: 844 } })
+    const isolatedPage = await isolatedContext.newPage()
+    await loginFromRoot(isolatedPage)
+    await isolatedPage.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' })
+    await isolatedPage.getByRole('heading', { name: 'Content editor' }).waitFor()
+    await page.getByRole('button', { name: 'Log out' }).click()
+    await isolatedPage.reload({ waitUntil: 'domcontentloaded' })
+    await isolatedPage.getByRole('heading', { name: 'Content editor' }).waitFor()
+    await page.getByLabel('Email').fill(email)
+    await page.getByLabel('Password').fill(password)
+    await page.getByRole('button', { name: 'Sign in' }).click()
     await page.getByRole('heading', { name: 'Content editor' }).waitFor()
 
     const headline = page.getByLabel('Hero headline')
@@ -44,20 +56,23 @@ async function main() {
     await saveAndWait(page)
     const baseline = await readJson(page, '/api/admin/content')
 
-    const uploader = page.locator('.media-uploader')
-    await uploader.locator('select').selectOption('hero')
-    await uploader.locator('input[type="file"]').setInputFiles(path.resolve('public/media/defaults/jp-chair-work-01.webp'))
-    await uploader.getByLabel('Image alt text').fill('Temporary upload-path verification image')
-    const imageUploadResponse = page.waitForResponse((response) => response.url().endsWith('/api/admin/media') && response.request().method() === 'POST')
-    await uploader.getByRole('button', { name: 'Upload' }).click()
-    if ((await imageUploadResponse).status() !== 201) throw new Error('Image upload was rejected')
-    await page.getByRole('button', { name: 'Save and publish preview' }).waitFor({ state: 'visible' })
+    const focusEditor = page.locator('.focus-editor')
+    await focusEditor.getByLabel('Horizontal').fill('37')
+    await focusEditor.getByLabel('Vertical').fill('28')
     await saveAndWait(page)
     live = await readJson(page, '/api/content')
-    if (!live.content.media.hero.url.startsWith('/uploads/')) throw new Error('Image did not publish')
-    const imageResponse = await page.request.get(`${baseUrl}${live.content.media.hero.url}`)
-    if (imageResponse.status() !== 200 || imageResponse.headers()['content-type'] !== 'image/webp') throw new Error('Published image did not render')
+    if (live.content.media.hero.focus.x !== 37 || live.content.media.hero.focus.y !== 28) throw new Error('Focus point did not publish')
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Content editor' }).waitFor()
+    if (await page.locator('.focus-editor input[type="range"]').first().inputValue() !== '37') throw new Error('Focus point did not persist after reload')
+    const publicPage = await context.newPage()
+    await publicPage.goto(baseUrl, { waitUntil: 'domcontentloaded' })
+    const objectPosition = await publicPage.locator('.chair-hero > img').evaluate((image) => getComputedStyle(image).objectPosition)
+    if (objectPosition !== '37% 28%') throw new Error(`Published focus rendered as ${objectPosition}`)
+    await publicPage.close()
     await restore(page, baseline.content, live.revision)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.getByRole('heading', { name: 'Content editor' }).waitFor()
 
     const disguisedStatus = await page.evaluate(async () => {
       const form = new FormData()
@@ -68,16 +83,26 @@ async function main() {
     if (disguisedStatus !== 415) throw new Error(`Disguised upload returned ${disguisedStatus}`)
 
     console.log(JSON.stringify({
-      login: 'passed',
+      repeatedLoginAndIsolatedContext: 'passed',
       textPublishAndRestore: 'passed',
-      imageUploadRenderAndRestore: 'passed',
+      focusPublishReloadRenderAndRestore: 'passed',
       disguisedUploadRejection: 'passed',
       finalRevision: (await readJson(page, '/api/content')).revision,
     }))
   } finally {
     await page.close()
+    await context.close()
+    if (isolatedContext) await isolatedContext.close()
     await browser.close()
   }
+}
+
+async function loginFromRoot(page) {
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded' })
+  await page.getByLabel('Email or username').fill(email)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await page.getByRole('link', { name: 'BOOK A CUT' }).waitFor()
 }
 
 async function readJson(page, url) {
