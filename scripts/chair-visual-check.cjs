@@ -57,8 +57,25 @@ async function main() {
           camoCount: document.querySelectorAll('.chair-camo').length,
           featuredCount: document.querySelectorAll('.chair-featured').length,
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
+          headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
+          headerBookVisible: visible('.chair-header-book'),
         }
       })
+
+      let mobileMenuGeometry = null
+      if (viewport.width < 960) {
+        await page.locator('.chair-menu-trigger').click()
+        mobileMenuGeometry = await page.evaluate(() => {
+          const header = document.querySelector('.chair-header').getBoundingClientRect()
+          const menu = document.querySelector('.chair-mobile-menu').getBoundingClientRect()
+          return {
+            headerBottom: Math.round(header.bottom),
+            menuTop: Math.round(menu.top),
+            menuVisible: menu.width > 0 && menu.height > 0,
+          }
+        })
+        await page.locator('.chair-menu-trigger').click()
+      }
 
       const heroShot = path.join(outputDir, `${viewport.name}-hero.png`)
       const fullShot = path.join(outputDir, `${viewport.name}-full.png`)
@@ -75,7 +92,7 @@ async function main() {
           await page.locator(selector).screenshot({ path: path.join(outputDir, `${viewport.name}-${name}.png`) })
         }
       }
-      report.push({ viewport, status: response.status(), ...metrics, heroShot, fullShot })
+      report.push({ viewport, status: response.status(), ...metrics, mobileMenuGeometry, heroShot, fullShot })
       await page.close()
     }
   } finally {
@@ -92,6 +109,7 @@ async function main() {
     item.switcherCount ||
     item.camoCount < 3 ||
     item.featuredCount !== 1 ||
+    (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1)) ||
     item.headline !== 'Your cut. Dialed in.'
   )
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))

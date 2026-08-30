@@ -316,6 +316,8 @@
 
 .chair-button:hover { background: #85884d; border-color: #85884d; }
 
+.chair-header .chair-header-book { display: none; }
+
 .chair-outline-button {
   color: var(--chair-ink);
   background: transparent;
@@ -629,7 +631,7 @@
     text-decoration: none;
     text-transform: uppercase;
   }
-  .chair-header-book { display: inline-flex; justify-self: end; min-width: 148px; }
+  .chair-header .chair-header-book { display: inline-flex; justify-self: end; min-width: 148px; }
   .chair-menu-trigger,
   .chair-mobile-menu,
   .chair-mobile-book { display: none; }

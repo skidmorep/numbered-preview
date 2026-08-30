@@ -32,4 +32,11 @@
 - Focus visibility, semantic buttons/links, alt text, reduced-motion behavior, and practical mobile tap targets are present.
 - No design switcher or stale skin query is rendered.
 
+## Release review
+
+- The v2-to-v3 content migration preserves existing owner edits while selecting the approved Chair headline.
+- Every field still exposed in the editor now renders on the public Chair site, including all featured-media types.
+- A mobile CSS cascade that exposed a duplicate header booking button was fixed. The responsive harness now opens the menu and rejects tall, overlapping mobile headers.
+- Lint, 18 Worker tests, the production build, four responsive Chair viewports, the authenticated foundation flow, and the high-severity dependency audit pass.
+
 **final result: passed**
