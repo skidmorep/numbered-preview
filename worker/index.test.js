@@ -83,6 +83,22 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     assertResponseError(() => validateContent(content), 400)
   })
 
+  await t.test('event links accept documented protocols and reject executable protocols', () => {
+    for (const url of [
+      'https://example.com/event',
+      'mailto:jp@jpcuuts.com?subject=Event',
+      'sms:+16155550100',
+      'tel:+16155550100',
+    ]) {
+      const content = structuredClone(defaultContent)
+      content.events.actionUrl = url
+      assert.equal(validateContent(content), true)
+    }
+    const content = structuredClone(defaultContent)
+    content.events.actionUrl = 'javascript:alert(1)'
+    assertResponseError(() => validateContent(content), 400)
+  })
+
   await t.test('Instagram field only accepts reel URLs', () => {
     const content = structuredClone(defaultContent)
     content.featured.url = 'https://www.instagram.com/cutzby.jp/'

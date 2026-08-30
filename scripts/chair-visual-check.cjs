@@ -18,6 +18,8 @@ async function main() {
   editorContent.hero.intro = 'Editor introduction proof.'
   editorContent.facts.mobile = 'Editor mobile label proof'
   editorContent.story.heading = 'Editor about heading proof'
+  editorContent.services[0].note = 'Editor service note proof'
+  editorContent.events.actionUrl = 'sms:+16155550100'
   editorContent.featured = {
     ...editorContent.featured,
     enabled: true,
@@ -73,6 +75,8 @@ async function main() {
           editorAboutHeading: document.querySelector('.chair-about .chair-outline-label')?.textContent.trim(),
           editorFeaturedHeading: document.querySelector('.chair-featured figcaption')?.textContent.trim(),
           editorFeaturedSource: document.querySelector('.chair-featured img')?.getAttribute('src'),
+          editorServiceDetails: document.querySelector('.chair-service span')?.textContent.trim(),
+          editorEventUrl: document.querySelector('.chair-events .chair-button')?.getAttribute('href'),
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
           headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
           headerBookVisible: visible('.chair-header-book'),
@@ -179,6 +183,8 @@ async function main() {
     item.editorAboutHeading !== 'Editor about heading proof' ||
     item.editorFeaturedHeading !== 'Editor featured heading proof' ||
     item.editorFeaturedSource !== '/media/defaults/jp-chair-work-01.webp' ||
+    item.editorServiceDetails !== 'About 35 minutes · Editor service note proof' ||
+    item.editorEventUrl !== 'sms:+16155550100' ||
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1)) ||
     item.headline !== 'Your cut. Dialed in.'
   )

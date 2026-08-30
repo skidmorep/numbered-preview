@@ -128,7 +128,7 @@ function Services({ content }) {
           <article className="chair-service" key={service.id}>
             <p>{service.name}</p>
             <strong>{service.price}</strong>
-            <span>{service.duration || service.note}</span>
+            <span>{[service.duration, service.note].filter(Boolean).join(' · ')}</span>
           </article>
         ))}
       </div>
@@ -168,7 +168,7 @@ function Events({ content }) {
         <p className="chair-outline-label">Bring the chair to you</p>
         <h2>{content.events.heading}</h2>
         <p>{content.events.body}</p>
-        <ExternalButton href={safeEventUrl(content)} className="chair-outline-button">{content.events.actionLabel}</ExternalButton>
+        <ExternalButton href={content.events.actionUrl} className="chair-outline-button">{content.events.actionLabel}</ExternalButton>
       </div>
       <div className="chair-events-grid">
         {eventPhotos.map((asset, index) => <Photo key={asset.url} asset={asset} className={`event-${index + 1}`} />)}
@@ -257,8 +257,4 @@ function HeroHeadline({ text }) {
   return parts.filter(Boolean).map((part, index) => (
     <span key={part}>{part}.{index < parts.length - 1 ? ' ' : ''}</span>
   ))
-}
-
-function safeEventUrl(content) {
-  return /^(?:sms|tel):/i.test(content.events.actionUrl || '') ? content.contact.instagramUrl : content.events.actionUrl
 }
