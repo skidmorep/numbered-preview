@@ -828,6 +828,16 @@
   object-fit: contain;
 }
 
+@media (max-width: 350px) {
+  .chair-mobile-book-copy {
+    grid-template-columns: 1fr;
+    align-content: center;
+    gap: 2px;
+  }
+  .chair-mobile-book-copy > span { white-space: nowrap; font-size: .78rem; }
+  .chair-mobile-book-copy small { justify-self: start; }
+}
+
 .before-after {
   width: 100%;
   display: grid;

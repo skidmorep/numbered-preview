@@ -134,6 +134,13 @@ async function main() {
             const mark = document.querySelector('.chair-mobile-book-mark')
             return copy && mark ? { copy: getComputedStyle(copy).backgroundColor, mark: getComputedStyle(mark).backgroundColor } : null
           })(),
+          mobileBookLabelSingleLine: (() => {
+            const node = document.querySelector('.chair-mobile-book-copy > span')
+            if (!node) return false
+            const range = document.createRange()
+            range.selectNodeContents(node)
+            return range.getClientRects().length === 1
+          })(),
           footerLogoCount: document.querySelectorAll('.chair-footer .chair-brand img').length,
           mobileHeaderBrandVisible: visible('.chair-header .chair-brand'),
           headerBookVisible: visible('.chair-header-book'),
@@ -241,7 +248,7 @@ async function main() {
     !item.heroLogo.filter?.includes('brightness(0)') ||
     !item.heroLogo.filter?.includes('invert(1)') ||
     item.footerLogoCount !== 1 ||
-    (item.viewport.width < 960 && (item.headerLogo?.visible || item.mobileHeaderBrandVisible || !item.mobileBookLogo?.visible || !item.mobileBookLogo.naturalWidth || item.mobileBookLogo.panelRatio < .24 || item.mobileBookLogo.panelRatio > .34 || item.mobileBookColors?.copy === item.mobileBookColors?.mark || item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
+    (item.viewport.width < 960 && (item.headerLogo?.visible || item.mobileHeaderBrandVisible || !item.mobileBookLogo?.visible || !item.mobileBookLogo.naturalWidth || item.mobileBookLogo.panelRatio < .24 || item.mobileBookLogo.panelRatio > .34 || item.mobileBookColors?.copy === item.mobileBookColors?.mark || !item.mobileBookLabelSingleLine || item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
     (item.viewport.width >= 960 && (!item.headerLogo?.visible || item.headerLogo.width < 50 || item.headerLogo.height < 52 || item.persistentMetrics.headerTop !== 0 || !item.headerBookVisible || item.desktopAnchorGeometry?.headingTop < item.desktopAnchorGeometry?.headerBottom)) ||
     item.headline !== 'Create. Connect. Collaborate.'
   )
