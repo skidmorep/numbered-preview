@@ -110,6 +110,7 @@ function Work({ content }) {
       <div className="chair-work-grid">
         {work.map((asset, index) => <Photo key={asset.url} asset={asset} className={`work-${index + 1}`} />)}
       </div>
+      <FeaturedMedia content={content} />
       <ExternalButton href={content.contact.instagramUrl} className="chair-outline-button">See more on Instagram</ExternalButton>
     </section>
   )
@@ -141,10 +142,11 @@ function About({ content }) {
   return (
     <section className="chair-section chair-about" id="about">
       <div className="chair-about-copy">
-        <p className="chair-outline-label">About JP</p>
+        <p className="chair-outline-label">{content.story.heading}</p>
         <h2>Clean cuts. Easy conversation. No pretense.</h2>
+        <p className="chair-about-intro">{content.hero.intro}</p>
         <p>{content.story.body}</p>
-        <p className="chair-location">Faded University · Smyrna</p>
+        <p className="chair-location">{content.facts.location}</p>
       </div>
       <div className="chair-about-images">
         <Photo asset={content.media.portrait} className="about-main" />
@@ -180,7 +182,7 @@ function Booking({ content }) {
     <section className="chair-booking" id="booking">
       <Photo asset={content.media.hero} />
       <div>
-        <p className="chair-kicker">Smyrna · Nashville area</p>
+        <p className="chair-kicker">{content.facts.mobile}</p>
         <h2>Ready for your next cut?</h2>
         <p className="chair-price">{content.facts.priceRange} <span>·</span> About 35 minutes</p>
         <ExternalButton href={content.booking.url}>{content.booking.label}</ExternalButton>
@@ -215,6 +217,32 @@ function CamoAccent({ compact = false }) {
 function Photo({ asset, className = '' }) {
   if (!asset?.url) return null
   return <figure className={`chair-photo ${className}`}><img src={asset.url} alt={asset.alt || ''} loading="lazy" /></figure>
+}
+
+function FeaturedMedia({ content }) {
+  if (!content.featured.enabled || !content.featured.url) return null
+  if (content.featured.type === 'video') {
+    return (
+      <figure className="chair-featured">
+        <video src={content.featured.url} poster={content.featured.posterUrl} controls playsInline preload="metadata" />
+        <figcaption>{content.featured.heading}</figcaption>
+      </figure>
+    )
+  }
+  if (content.featured.type === 'image') {
+    return (
+      <figure className="chair-featured">
+        <img src={content.featured.url} alt={content.featured.heading || 'Featured work by JP'} loading="lazy" />
+        <figcaption>{content.featured.heading}</figcaption>
+      </figure>
+    )
+  }
+  return (
+    <a className="chair-featured" href={content.featured.url} target="_blank" rel="noreferrer">
+      <img src={content.featured.posterUrl || content.media.gallery[0]?.url} alt="Featured work by JP" loading="lazy" />
+      <span>Watch {content.featured.heading || 'JP’s latest reel'} →</span>
+    </a>
+  )
 }
 
 function ExternalButton({ href, className = '', children }) {

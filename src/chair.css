@@ -263,6 +263,39 @@
 .chair-work-grid .chair-photo { aspect-ratio: 4 / 5; }
 .chair-work-grid .work-3 { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
 
+.chair-featured {
+  min-height: 112px;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: stretch;
+  border: 2px solid var(--chair-ink);
+  color: var(--chair-sand-light);
+  background: var(--chair-ink);
+  text-decoration: none;
+  overflow: hidden;
+}
+
+.chair-featured img,
+.chair-featured video {
+  width: 100%;
+  height: 100%;
+  min-height: 112px;
+  display: block;
+  object-fit: cover;
+}
+
+.chair-featured span,
+.chair-featured figcaption {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 18px;
+  font-size: .72rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .chair-button {
   min-height: 54px;
   display: inline-flex;
@@ -619,6 +652,7 @@
   .chair-work .chair-section-heading { grid-column: 1 / -1; }
   .chair-work .before-after { grid-column: 1; }
   .chair-work-grid { grid-column: 2; }
+  .chair-featured { grid-column: 2; max-width: 560px; }
   .chair-work > .chair-button { grid-column: 2; justify-self: start; }
   .before-after-frame { aspect-ratio: 4 / 5; }
   .chair-work-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

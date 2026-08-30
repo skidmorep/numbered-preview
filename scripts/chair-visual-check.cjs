@@ -55,6 +55,7 @@ async function main() {
           switcherCount: document.querySelectorAll('.n-preview-bar, .n-skin-tabs, [data-skin]').length,
           tan: getComputedStyle(document.querySelector('.chair-work')).backgroundColor,
           camoCount: document.querySelectorAll('.chair-camo').length,
+          featuredCount: document.querySelectorAll('.chair-featured').length,
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
         }
       })
@@ -90,6 +91,7 @@ async function main() {
     item.imageFailures.length ||
     item.switcherCount ||
     item.camoCount < 3 ||
+    item.featuredCount !== 1 ||
     item.headline !== 'Your cut. Dialed in.'
   )
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))

@@ -120,7 +120,7 @@ export function Editor({ defaults }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="Services" description="These facts stay identical in every design.">
+          <EditorSection title="Services" description="Update the two service cards published on The Chair.">
             <div className="service-editor">
               {content.services.map((service, index) => (
                 <div className="service-edit-row" key={service.id}>

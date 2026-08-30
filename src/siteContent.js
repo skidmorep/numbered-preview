@@ -65,7 +65,7 @@ export const defaultContent = {
     posterUrl: '/media/defaults/jp-chair-work-02.webp',
   },
   story: {
-    heading: 'Meet JP.',
+    heading: 'About JP',
     body: 'JP is a Smyrna-based barber serving clients across the Nashville area. He brings a calm chair, careful attention, and a clean finish to every appointment. This temporary bio is ready for JP to replace in the editor.',
   },
   events: {
@@ -97,6 +97,12 @@ function migrateContent(incoming) {
       headline: incoming.hero?.headline
         || incoming.hero?.headlines?.cutRecord
         || defaultContent.hero.headline,
+    },
+    story: {
+      ...incoming.story,
+      heading: incoming.story?.heading === 'Meet JP.'
+        ? defaultContent.story.heading
+        : incoming.story?.heading,
     },
     media: {
       ...defaultContent.media,
