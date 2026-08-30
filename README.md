@@ -37,7 +37,7 @@ npm run test:chair
 npm run test:foundation
 ```
 
-Remote visual and editor checks require an owner session or the existing owner credentials and test-video path.
+Remote visual and editor checks require an owner session or the existing owner credentials.
 
 ## Content and media rules
 
