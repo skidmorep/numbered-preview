@@ -37,6 +37,7 @@ test('legacy content migration preserves the chosen headline while enforcing app
     },
   }
   legacy.booking.url = 'https://example.com/wrong-booking'
+  legacy.proof = { rating: '5', reviewCount: 12, sourceLabel: 'Booksy' }
   legacy.story.body = 'Owner-authored biography.'
   legacy.media.beforeAfter.heading = 'Owner-authored comparison.'
   legacy.media.hero.alt = 'Owner-authored hero alt text'
@@ -54,6 +55,7 @@ test('legacy content migration preserves the chosen headline while enforcing app
   assert.equal(migrated.media.beforeAfter.heading, defaultContent.media.beforeAfter.heading)
   assert.equal(migrated.media.hero.alt, defaultContent.media.hero.alt)
   assert.equal(migrated.contact.email, undefined)
+  assert.deepEqual(migrated.proof, defaultContent.proof)
   assert.equal(migrated.events.actionUrl, undefined)
   assert.doesNotMatch(JSON.stringify(migrated), /Unused second headline/)
   assert.deepEqual(migrated.media.hero.focus, defaultContent.media.hero.focus)

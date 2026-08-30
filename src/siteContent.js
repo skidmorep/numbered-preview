@@ -111,6 +111,7 @@ function migrateContent(incoming) {
       note: serviceNotes.get(service.id) || service.note,
     })),
     facts: defaultContent.facts,
+    proof: defaultContent.proof,
     story: defaultContent.story,
     events: {
       ...defaultContent.events,
