@@ -102,38 +102,24 @@ export function Editor({ defaults }) {
           <p className="editor-help">This content publishes directly into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
-          <EditorSection title="Basics" description="Name, booking, positioning, and the main headline.">
-            <div className="field-grid two">
-              <Field label="Public name" value={content.brand.publicName} onChange={(value) => update('brand.publicName', value)} maxLength={80} />
-              <Field label="Hero eyebrow" value={content.hero.eyebrow} onChange={(value) => update('hero.eyebrow', value)} maxLength={120} />
-            </div>
-            <Field label="Shared introduction" value={content.hero.intro} onChange={(value) => update('hero.intro', value)} textarea maxLength={360} />
+          <EditorSection title="Basics" description="The approved JP Cuts profile, location, and booking destination are locked. Update the main headline or button label.">
             <Field label="Hero headline" value={content.hero.headline} onChange={(value) => update('hero.headline', value)} maxLength={90} />
-            <div className="field-grid two">
-              <Field label="Booking button" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
-              <Field label="Booking URL" type="url" value={content.booking.url} onChange={(value) => update('booking.url', value)} maxLength={500} />
-            </div>
-            <div className="field-grid three">
-              <Field label="Price range" value={content.facts.priceRange} onChange={(value) => update('facts.priceRange', value)} maxLength={30} />
-              <Field label="Location" value={content.facts.location} onChange={(value) => update('facts.location', value)} maxLength={60} />
-              <Field label="Mobile label" value={content.facts.mobile} onChange={(value) => update('facts.mobile', value)} maxLength={60} />
-            </div>
+            <Field label="Booking button" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
+            <p className="editor-help">Bookings use the approved Calendly page.</p>
           </EditorSection>
 
-          <EditorSection title="Services" description="Update the two service cards published on The Chair.">
+          <EditorSection title="Services" description="Pricing and availability are fixed. Update the supporting notes only.">
             <div className="service-editor">
               {content.services.map((service, index) => (
                 <div className="service-edit-row" key={service.id}>
-                  <label className="check-field"><input type="checkbox" checked={service.enabled} onChange={(event) => update(`services.${index}.enabled`, event.target.checked)} /> Show</label>
-                  <Field label="Service" value={service.name} onChange={(value) => update(`services.${index}.name`, value)} maxLength={80} />
-                  <Field label="Price" value={service.price} onChange={(value) => update(`services.${index}.price`, value)} maxLength={30} />
+                  <p><strong>{service.name}</strong><br />{service.price}{service.duration ? ` · ${service.duration}` : ''}</p>
                   <Field label="Note" value={service.note} onChange={(value) => update(`services.${index}.note`, value)} maxLength={140} />
                 </div>
               ))}
             </div>
           </EditorSection>
 
-          <EditorSection title="Photos & video" description="Replace the hero, JP portrait, before/after pair, gallery, or featured video. Images require useful alt text.">
+          <EditorSection title="Photos" description="Replace the hero, JP portrait, before/after pair, or gallery with approved JP Cuts images. The Instagram Reel is fixed.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
             <div className="media-preview-grid">
               <MediaPreview label="Hero" asset={content.media.hero} />
@@ -144,31 +130,12 @@ export function Editor({ defaults }) {
             </div>
             <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
             <Field label="Before/after heading" value={content.media.beforeAfter.heading} onChange={(value) => update('media.beforeAfter.heading', value)} maxLength={120} />
-            <div className="field-grid two">
-              <label className="field"><span>Featured media</span><select value={content.featured.type} onChange={(event) => update('featured.type', event.target.value)}><option value="instagram">Instagram reel</option><option value="video">Uploaded video</option><option value="image">Image URL</option></select></label>
-              <Field label="Featured URL" value={content.featured.url} onChange={(value) => update('featured.url', value)} maxLength={500} />
-            </div>
+            <p className="editor-help">The approved @jpcuuts Reel stays embedded on the homepage.</p>
           </EditorSection>
 
-          <EditorSection title="About JP, events & contact" description="JP can replace the temporary bio, keep the verse as a small detail, and update every public contact link.">
-            <div className="field-grid two">
-              <Field label="Verse reference" value={content.brand.verseReference} onChange={(value) => update('brand.verseReference', value)} maxLength={80} />
-              <Field label="Verse quote" value={content.brand.verseQuote} onChange={(value) => update('brand.verseQuote', value)} maxLength={180} />
-            </div>
-            <Field label="About heading" value={content.story.heading} onChange={(value) => update('story.heading', value)} maxLength={120} />
-            <Field label="About JP bio" value={content.story.body} onChange={(value) => update('story.body', value)} textarea maxLength={700} />
-            <label className="check-field"><input type="checkbox" checked={content.events.enabled} onChange={(event) => update('events.enabled', event.target.checked)} /> Show group and event section</label>
-            <Field label="Event heading" value={content.events.heading} onChange={(value) => update('events.heading', value)} maxLength={120} />
-            <Field label="Event description" value={content.events.body} onChange={(value) => update('events.body', value)} textarea maxLength={700} />
-            <div className="field-grid two">
-              <Field label="Event button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
-              <Field label="Event link (https, sms, tel, or mailto)" value={content.events.actionUrl} onChange={(value) => update('events.actionUrl', value)} maxLength={500} />
-              <Field label="Public email" type="email" value={content.contact.email} onChange={(value) => update('contact.email', value)} maxLength={254} />
-              <Field label="Instagram URL" type="url" value={content.contact.instagramUrl} onChange={(value) => update('contact.instagramUrl', value)} maxLength={500} />
-              <Field label="Facebook URL" type="url" value={content.contact.facebookUrl} onChange={(value) => update('contact.facebookUrl', value)} maxLength={500} />
-              <Field label="TikTok URL" type="url" value={content.contact.tiktokUrl} onChange={(value) => update('contact.tiktokUrl', value)} maxLength={500} />
-              <Field label="YouTube URL" type="url" value={content.contact.youtubeUrl} onChange={(value) => update('contact.youtubeUrl', value)} maxLength={500} />
-            </div>
+          <EditorSection title="About JP & events" description="The approved biography, Matthew 10:30 detail, Middle Tennessee language, event copy, and social destinations are locked.">
+            <Field label="Contact form button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
+            <p className="editor-help">Event messages use the private website form. JP’s email address is never published in the page or content API.</p>
           </EditorSection>
           {user?.role === 'owner' && <OwnerAccess setStatus={setStatus} />}
         </main>
@@ -216,7 +183,6 @@ function MediaUploader({ content, update, setStatus }) {
     ['before', 'Before image'],
     ['after', 'After image'],
     ...content.media.gallery.map((_, index) => [`gallery-${index}`, `Gallery ${index + 1}`]),
-    ['featured-video', 'Featured video'],
   ], [content.media.gallery])
 
   const upload = async (event) => {
@@ -234,10 +200,7 @@ function MediaUploader({ content, update, setStatus }) {
       else if (target === 'portrait') update('media.portrait', asset)
       else if (target === 'before') update('media.beforeAfter.before', asset)
       else if (target === 'after') update('media.beforeAfter.after', asset)
-      else if (target === 'featured-video') {
-        update('featured.type', 'video')
-        update('featured.url', asset.url)
-      } else update(`media.gallery.${Number(target.split('-')[1])}`, asset)
+      else update(`media.gallery.${Number(target.split('-')[1])}`, asset)
       setStatus('Media uploaded. Save and publish when the preview looks right.')
       setFile(null)
       setAlt('')
@@ -245,7 +208,7 @@ function MediaUploader({ content, update, setStatus }) {
     } catch (error) { setStatus(error.message) }
   }
 
-  return <form className="media-uploader" onSubmit={upload}><label className="field"><span>Replace</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{targets.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span>File</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif,video/mp4,video/webm" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><Field label="Image alt text" value={alt} onChange={setAlt} maxLength={180} /><button type="submit">Upload</button><p>Images: 6 MB max. Video: 15 MB max. JPEG, PNG, WebP, AVIF, MP4, or WebM.</p></form>
+  return <form className="media-uploader" onSubmit={upload}><label className="field"><span>Replace</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{targets.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span>File</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><Field label="Image alt text" value={alt} onChange={setAlt} maxLength={180} /><button type="submit">Upload</button><p>Images: 6 MB max. JPEG, PNG, WebP, or AVIF.</p></form>
 }
 
 function MediaPreview({ label, asset }) {

@@ -11,7 +11,9 @@ run_worker_first = true
 [vars]
 INITIAL_ADMIN_EMAIL = "skidmore@parabolos.com"
 PUBLIC_ORIGIN = "https://dev.jpcuuts.com"
-RESET_EMAIL_FROM = "JP Cuts <numbered@parabolos.com>"
+RESET_EMAIL_FROM = "JP Cuts <jpcuuts@parabolos.com>"
+CONTACT_EMAIL_FROM = "JP Cuts website <jpcuuts@parabolos.com>"
+CONTACT_EMAIL_TO = "jp@jpcuuts.com"
 
 [[d1_databases]]
 binding = "DB"

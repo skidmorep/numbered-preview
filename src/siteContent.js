@@ -5,7 +5,7 @@ const media = (name, alt) => ({
 })
 
 export const defaultContent = {
-  version: 3,
+  version: 4,
   revision: 0,
   brand: {
     publicName: 'JP CUTS',
@@ -14,22 +14,22 @@ export const defaultContent = {
     verseReference: 'Matthew 10:30',
   },
   hero: {
-    eyebrow: 'Smyrna barber · Nashville area',
+    eyebrow: 'Smyrna barber · Middle Tennessee',
     headline: 'Your cut. Dialed in.',
-    intro: 'JP delivers clean, precise cuts for clients across Smyrna and the Nashville area.',
+    intro: 'JP delivers clean, precise cuts for clients across Smyrna and Middle Tennessee.',
   },
   booking: {
     label: 'Book a cut',
     url: 'https://calendly.com/jpcuts/30mins',
   },
   services: [
-    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes', note: 'Book through Calendly', enabled: true },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes', note: 'Book through Calendly', enabled: true },
     { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '', note: 'Add-on with a haircut', enabled: true },
   ],
   facts: {
     priceRange: '$35',
-    location: 'Faded University · Smyrna',
-    mobile: 'Nashville area',
+    location: 'Faded University · Smyrna, Middle Tennessee',
+    mobile: 'Middle Tennessee',
     bookingTruth: 'Calendly',
   },
   proof: {
@@ -39,7 +39,7 @@ export const defaultContent = {
   },
   media: {
     hero: media('jp-chair-hero', 'JP cutting a client’s hair in the barber chair'),
-    portrait: media('jp-chair-portrait', 'JP holding clippers at Faded University'),
+    portrait: media('jp-chair-portrait', 'JP smiling and holding clippers at Faded University'),
     gallery: [
       media('jp-chair-work-01', 'A client with clean waves and sharp lines after a cut by JP'),
       media('jp-chair-work-02', 'A client with a finished red curly fade by JP'),
@@ -49,6 +49,9 @@ export const defaultContent = {
       media('jp-chair-event-01', 'JP preparing a client for a formal event'),
       media('jp-chair-event-02', 'A formal event haircut by JP'),
       media('jp-chair-event-03', 'JP working with a client before an event'),
+      media('jp-chair-team-01', 'JP cutting a team member’s hair during a group session'),
+      media('jp-chair-team-02', 'JP shaping a fade during a team haircut session'),
+      media('jp-chair-team-03', 'JP finishing a team member’s haircut'),
     ],
     beforeAfter: {
       enabled: true,
@@ -66,17 +69,15 @@ export const defaultContent = {
   },
   story: {
     heading: 'About JP',
-    body: 'JP is a Smyrna-based barber serving clients across the Nashville area. He brings a calm chair, careful attention, and a clean finish to every appointment. This temporary bio is ready for JP to replace in the editor.',
+    body: 'Have you ever been bored and decided to do something crazy? For me, that meant shaving my brother’s head 10 years ago. What I thought was just a good prank eventually turned into a passion.\n\nWhen I got to college, I realized that people needed more than just haircuts, they needed a place to belong. That realization inspired me to pursue barber school after graduating from college and prepared me to turn that passion into a career.\n\nToday, I get to combine my passion for barbering with my passion for people—providing professional services while creating a space where you feel known, connected, and confident.',
   },
   events: {
     enabled: true,
-    heading: 'Cuts for your group or event.',
-    body: 'Planning cuts for a team, wedding, pop-up, church, or youth event? Email JP with the date, headcount, and location to start the conversation.',
-    actionLabel: 'Email JP',
-    actionUrl: 'mailto:jp@jpcuuts.com?subject=Group%20or%20event%20inquiry',
+    heading: 'Cuts for events, groups, and teams.',
+    body: 'Planning cuts for a team, wedding, pop-up, church, or youth event? Send JP the date, headcount, and location to start the conversation.',
+    actionLabel: 'Ask about your event',
   },
   contact: {
-    email: 'jp@jpcuuts.com',
     phone: '',
     instagramUrl: 'https://www.instagram.com/jpcuuts/',
     facebookUrl: 'https://www.facebook.com/jpcuuts',
@@ -86,32 +87,37 @@ export const defaultContent = {
 }
 
 function migrateContent(incoming) {
-  if (!incoming || Number(incoming.version || 0) >= defaultContent.version) return incoming
+  if (!incoming) return incoming
+  const legacy = Number(incoming.version || 0) < defaultContent.version
+  const serviceNotes = new Map((incoming.services || []).map((service) => [service.id, service.note]))
 
   return {
     ...incoming,
     version: defaultContent.version,
+    brand: defaultContent.brand,
     hero: {
       ...defaultContent.hero,
-      ...incoming.hero,
       headline: incoming.hero?.headline
         || incoming.hero?.headlines?.cutRecord
         || defaultContent.hero.headline,
     },
-    story: {
-      ...incoming.story,
-      heading: incoming.story?.heading === 'Meet JP.'
-        ? defaultContent.story.heading
-        : incoming.story?.heading,
+    booking: {
+      ...defaultContent.booking,
+      label: incoming.booking?.label || defaultContent.booking.label,
     },
-    media: {
-      ...defaultContent.media,
-      ...incoming.media,
-      beforeAfter: {
-        ...defaultContent.media.beforeAfter,
-        ...incoming.media?.beforeAfter,
-      },
+    services: defaultContent.services.map((service) => ({
+      ...service,
+      note: serviceNotes.get(service.id) || service.note,
+    })),
+    facts: defaultContent.facts,
+    story: defaultContent.story,
+    events: {
+      ...defaultContent.events,
+      actionLabel: incoming.events?.actionLabel || defaultContent.events.actionLabel,
     },
+    contact: defaultContent.contact,
+    media: legacy ? defaultContent.media : (incoming.media || defaultContent.media),
+    featured: defaultContent.featured,
   }
 }
 

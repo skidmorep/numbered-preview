@@ -41,18 +41,20 @@ Remote visual and editor checks require an owner session or the existing owner c
 
 ## Content and media rules
 
-- The editor supports shared copy, services, booking/event links, the hero headline, the editable About JP bio and verse, public social/contact links, hero and portrait images, a before/after pair, gallery slots, one uploaded video, and one featured Instagram reel.
-- Instagram reels use a clean poster that opens Instagram. An uploaded featured video plays natively without Instagram's feed interface.
-- The public preview omits JP's phone number; event inquiries use `jp@jpcuuts.com`.
+- The editor supports the hero headline and booking label, notes for the two approved services, approved replacement photos, the before/after heading, and the event-form button label.
+- The approved Instagram Reel is fixed and embedded on the homepage.
+- The public page omits JP's phone number and email address. Event inquiries use the accordion form and the Worker keeps the delivery address server-side.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.
 - Videos must be MP4 or WebM and no larger than 15 MB.
 - Images require alt text before upload.
 - Empty optional sections stay hidden.
 - Published content writes a new revision; simultaneous stale saves are rejected.
 
+Content version 4 is a one-time correction release. When version 3 content loads, it preserves the selected hero headline and replaces the old brand name, location, booking destination, services, bio, event copy, social links, featured Reel, and homepage media with the approved JP Cuts values. This intentionally removes stale owner edits that conflict with the corrected source material.
+
 ## Media source
 
-JP approved the selected client, wedding, and team photographs in the shared Dropbox project folder. Optimized derivatives belong in `public/media/defaults`; the source originals remain untouched.
+JP approved the selected client, wedding, and team photographs in the shared Dropbox project folder. Optimized derivatives belong in `public/media/defaults`; the source originals remain untouched. `media-sources.json` records the approved source and derivative hash for each shipped homepage asset.
 
 ## Account handoff and recovery
 
@@ -65,7 +67,7 @@ JP approved the selected client, wedding, and team photographs in the shared Dro
 - `/claim/` remains an operator-assisted fallback for an existing private recovery code, but it is not linked from the login screen.
 - The owner can add another owner from the editor after confirming the person's email address.
 
-Deployment requires the `RESEND_API_KEY` Worker secret. Apply D1 migrations before deploying:
+Password reset and contact delivery use the existing `RESEND_API_KEY` Worker secret. `CONTACT_EMAIL_FROM` and `CONTACT_EMAIL_TO` are server-only Worker variables; the recipient never enters the public content payload or HTML. Apply D1 migrations before deploying:
 
 ```sh
 npm run cf:migrate:remote

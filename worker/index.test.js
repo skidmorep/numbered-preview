@@ -9,15 +9,21 @@ const sessionCookie = `__Host-numbered_session=${sessionToken}`
 test('bundled content passes the Worker validation contract', () => {
   assert.equal(validateContent(structuredClone(defaultContent)), true)
   assert.equal(defaultContent.contact.phone, '')
-  assert.match(defaultContent.events.actionUrl, /^mailto:/)
+  assert.equal(defaultContent.contact.email, undefined)
+  assert.equal(defaultContent.events.actionUrl, undefined)
   assert.equal(defaultContent.brand.publicName, 'JP CUTS')
   assert.equal(defaultContent.booking.url, 'https://calendly.com/jpcuts/30mins')
+  assert.deepEqual(defaultContent.services.map(({ name, price }) => ({ name, price })), [
+    { name: 'Haircut', price: '$35' },
+    { name: 'Shave or beard trim', price: '+$5' },
+  ])
+  assert.match(defaultContent.facts.mobile, /Middle Tennessee/)
   assert.equal(defaultContent.media.beforeAfter.enabled, true)
 })
 
-test('v2 content migration preserves owner edits while selecting one hero headline', () => {
+test('legacy content migration preserves the chosen headline while enforcing approved JP Cuts facts and media', () => {
   const legacy = structuredClone(defaultContent)
-  legacy.version = 2
+  legacy.version = 3
   legacy.brand.publicName = 'JP CUSTOM'
   legacy.hero = {
     eyebrow: 'Custom eyebrow',
@@ -28,21 +34,25 @@ test('v2 content migration preserves owner edits while selecting one hero headli
       openChair: 'Unused third headline.',
     },
   }
-  legacy.booking.url = 'https://calendly.com/example/custom'
+  legacy.booking.url = 'https://example.com/wrong-booking'
   legacy.story.body = 'Owner-authored biography.'
   legacy.media.beforeAfter.heading = 'Owner-authored comparison.'
   legacy.media.hero.alt = 'Owner-authored hero alt text'
+  legacy.contact.email = 'public@example.com'
+  legacy.events.actionUrl = 'mailto:public@example.com'
 
   const migrated = mergeContent(legacy)
-  assert.equal(migrated.version, 3)
-  assert.equal(migrated.brand.publicName, 'JP CUSTOM')
-  assert.equal(migrated.hero.eyebrow, 'Custom eyebrow')
-  assert.equal(migrated.hero.intro, 'Custom introduction')
+  assert.equal(migrated.version, 4)
+  assert.equal(migrated.brand.publicName, 'JP CUTS')
+  assert.match(migrated.hero.eyebrow, /Middle Tennessee/)
+  assert.match(migrated.hero.intro, /Middle Tennessee/)
   assert.equal(migrated.hero.headline, 'Owner-authored headline.')
-  assert.equal(migrated.booking.url, 'https://calendly.com/example/custom')
-  assert.equal(migrated.story.body, 'Owner-authored biography.')
-  assert.equal(migrated.media.beforeAfter.heading, 'Owner-authored comparison.')
-  assert.equal(migrated.media.hero.alt, 'Owner-authored hero alt text')
+  assert.equal(migrated.booking.url, 'https://calendly.com/jpcuts/30mins')
+  assert.equal(migrated.story.body, defaultContent.story.body)
+  assert.equal(migrated.media.beforeAfter.heading, defaultContent.media.beforeAfter.heading)
+  assert.equal(migrated.media.hero.alt, defaultContent.media.hero.alt)
+  assert.equal(migrated.contact.email, undefined)
+  assert.equal(migrated.events.actionUrl, undefined)
   assert.doesNotMatch(JSON.stringify(migrated), /Unused second headline/)
 })
 
@@ -61,7 +71,7 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
 
   await t.test('gallery is bounded', () => {
     const content = structuredClone(defaultContent)
-    content.media.gallery = Array.from({ length: 10 }, () => content.media.hero)
+    content.media.gallery = Array.from({ length: 13 }, () => content.media.hero)
     assertResponseError(() => validateContent(content), 400)
   })
 
@@ -83,25 +93,26 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     assertResponseError(() => validateContent(content), 400)
   })
 
-  await t.test('event links accept documented protocols and reject executable protocols', () => {
-    for (const url of [
-      'https://example.com/event',
-      'mailto:jp@jpcuuts.com?subject=Event',
-      'sms:+16155550100',
-      'tel:+16155550100',
-    ]) {
-      const content = structuredClone(defaultContent)
-      content.events.actionUrl = url
-      assert.equal(validateContent(content), true)
-    }
+  await t.test('booking and Instagram reject unapproved destinations', () => {
     const content = structuredClone(defaultContent)
-    content.events.actionUrl = 'javascript:alert(1)'
+    content.booking.url = 'https://example.com/book'
+    assertResponseError(() => validateContent(content), 400)
+    content.booking.url = defaultContent.booking.url
+    content.contact.instagramUrl = 'https://www.instagram.com/wrongbarber/'
+    assertResponseError(() => validateContent(content), 400)
+    content.contact.instagramUrl = defaultContent.contact.instagramUrl
+    content.featured.url = 'https://www.instagram.com/reel/WrongReel/'
+    assertResponseError(() => validateContent(content), 400)
+    content.featured.url = defaultContent.featured.url
+    content.featured.type = 'video'
     assertResponseError(() => validateContent(content), 400)
   })
 
-  await t.test('Instagram field only accepts reel URLs', () => {
+  await t.test('additional or repriced services are rejected', () => {
     const content = structuredClone(defaultContent)
-    content.featured.url = 'https://www.instagram.com/cutzby.jp/'
+    content.services[0].price = '$40'
+    assertResponseError(() => validateContent(content), 400)
+    content.services = [...defaultContent.services, { id: 'other', name: 'Other', price: '$10', duration: '', note: '', enabled: true }]
     assertResponseError(() => validateContent(content), 400)
   })
 })
@@ -233,6 +244,95 @@ test('reset links keep tokens out of requests and response HTML', async () => {
   assert.doesNotMatch(await invalid.text(), new RegExp(secret))
 })
 
+test('event contact form delivers plain text server-side without exposing the destination address', async () => {
+  const bindings = resetRequestEnv()
+  const response = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: {
+      origin: 'https://numbered.test',
+      'content-type': 'application/json',
+      'cf-connecting-ip': '203.0.113.30',
+      cookie: sessionCookie,
+    },
+    body: JSON.stringify({
+      name: 'Taylor Smith',
+      email: 'taylor@example.com',
+      organization: 'Lipscomb team',
+      eventDate: '2026-10-03',
+      details: 'We need cuts for six people before a team event.',
+      website: '',
+      startedAt: Date.now() - 5_000,
+    }),
+  }), bindings.env)
+  const body = await response.text()
+
+  assert.equal(response.status, 200)
+  assert.equal(body, '{"ok":true}')
+  assert.doesNotMatch(body, /jp@jpcuuts\.com/)
+  assert.equal(bindings.state.sent.length, 1)
+  assert.deepEqual(bindings.state.sent[0].to, ['jp@jpcuuts.com'])
+  assert.equal(bindings.state.sent[0].reply_to, 'taylor@example.com')
+  assert.match(bindings.state.sent[0].text, /Lipscomb team/)
+  assert.match(bindings.state.sent[0].text, /six people/)
+})
+
+test('event contact form rejects cross-origin, rushed, hostile, and repeated submissions while silently accepting the honeypot', async () => {
+  const payload = {
+    name: 'Taylor Smith', email: 'taylor@example.com', organization: '', eventDate: '',
+    details: 'A complete event inquiry.', website: '', startedAt: Date.now() - 5_000,
+  }
+
+  const crossOrigin = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://evil.example', 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  }), untouchedBindings().env)
+  assert.equal(crossOrigin.status, 403)
+
+  const unauthenticated = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  }), untouchedBindings().env)
+  assert.equal(unauthenticated.status, 401)
+
+  const rushedBindings = resetRequestEnv()
+  const rushed = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ ...payload, startedAt: Date.now() }),
+  }), rushedBindings.env)
+  assert.equal(rushed.status, 400)
+  assert.equal(rushedBindings.state.sent.length, 0)
+
+  const hostileBindings = resetRequestEnv()
+  const hostile = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ ...payload, name: '<script>alert(1)</script>' }),
+  }), hostileBindings.env)
+  assert.equal(hostile.status, 400)
+  assert.equal(hostileBindings.state.sent.length, 0)
+
+  const honeypotBindings = resetRequestEnv()
+  const honeypot = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ ...payload, website: 'https://spam.example' }),
+  }), honeypotBindings.env)
+  assert.equal(honeypot.status, 200)
+
+  const repeatedBindings = resetRequestEnv()
+  const request = () => new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.31', cookie: sessionCookie },
+    body: JSON.stringify(payload),
+  })
+  assert.equal((await handleRequest(request(), repeatedBindings.env)).status, 200)
+  assert.equal((await handleRequest(request(), repeatedBindings.env)).status, 429)
+  assert.equal(repeatedBindings.state.sent.length, 1)
+})
+
 test('authenticated content endpoint safely returns bundled-fallback state and security headers', async () => {
   const env = authenticatedEnv()
   const response = await handleRequest(new Request('https://numbered.test/api/content', {
@@ -246,6 +346,28 @@ test('authenticated content endpoint safely returns bundled-fallback state and s
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive')
   assert.match(response.headers.get('content-security-policy'), /frame-src https:\/\/www\.instagram\.com/)
   assert.equal(response.headers.get('access-control-allow-origin'), null)
+})
+
+test('authenticated content endpoint removes forbidden fields from stored legacy content', async () => {
+  const legacy = structuredClone(defaultContent)
+  legacy.version = 3
+  legacy.contact.email = 'jp@jpcuuts.com'
+  legacy.events.actionUrl = 'mailto:jp@jpcuuts.com'
+  legacy.booking.url = 'https://wrong.example/booksy'
+  legacy.facts.location = 'Nashville'
+  legacy.featured.url = 'https://www.instagram.com/reel/wrong/'
+  const env = authenticatedEnv(legacy)
+  const response = await handleRequest(new Request('https://numbered.test/api/content', {
+    headers: { cookie: sessionCookie },
+  }), env)
+  const body = await response.json()
+  const serialized = JSON.stringify(body)
+
+  assert.equal(response.status, 200)
+  assert.equal(body.content.version, 4)
+  assert.equal(body.content.booking.url, 'https://calendly.com/jpcuts/30mins')
+  assert.equal(body.content.featured.url, 'https://www.instagram.com/reel/DX1nfUogdFn/')
+  assert.doesNotMatch(serialized, /jp@jpcuuts\.com|mailto:|booksy|nashville|reel\/wrong/i)
 })
 
 test('admin routes reject missing sessions and cross-origin mutations before parsing bodies', async () => {
@@ -333,7 +455,7 @@ test('one-time emailed recovery chooses a password, revokes sessions, and requir
   assert.equal(env.state.sessionCount, 1)
 })
 
-function authenticatedEnv() {
+function authenticatedEnv(siteContent = null) {
   return {
     ASSETS: { fetch: async () => new Response('site') },
     MEDIA: { head: async () => null, get: async () => null },
@@ -349,7 +471,7 @@ function authenticatedEnv() {
                 force_password_change: 0, disabled: 0,
               }
             }
-            if (sql.includes('from site_state')) return null
+            if (sql.includes('from site_state')) return siteContent ? { content_json: JSON.stringify(siteContent), revision: 9 } : null
             throw new Error(`Unexpected query: ${sql}`)
           },
         }
@@ -366,7 +488,8 @@ function resetRequestEnv({ userExists = true } = {}) {
   }
   const env = {
     PUBLIC_ORIGIN: 'https://numbered.test',
-    RESET_EMAIL_FROM: 'JP Cuts <numbered@parabolos.com>',
+    RESET_EMAIL_FROM: 'JP Cuts <jpcuuts@parabolos.com>',
+    CONTACT_EMAIL_TO: 'jp@jpcuuts.com',
     EMAIL_TRANSPORT: {
       async send(message) { state.sent.push(message); return { sent: true, id: 'email-1' } },
     },
@@ -380,6 +503,7 @@ function resetRequestEnv({ userExists = true } = {}) {
           bind(...nextValues) { values = nextValues; return this },
           async first() {
             if (sql.includes('from password_reset_limits')) return state.limits.get(values[0]) || null
+            if (sql.includes('from admin_sessions')) return { ...user, force_password_change: 0, token_hash: 'hash' }
             if (sql.includes('from admin_users where lower')) return userExists ? user : null
             throw new Error(`Unexpected query: ${sql}`)
           },

@@ -1,3 +1,5 @@
+import { mergeContent } from '../src/siteContent.js'
+
 const SESSION_COOKIE = '__Host-numbered_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
 const RESET_TTL_SECONDS = 30 * 60
@@ -9,6 +11,10 @@ const RESET_WINDOW_MS = 60 * 60 * 1000
 const RESET_COOLDOWN_MS = 60 * 1000
 const MAX_RESET_EMAIL_REQUESTS = 3
 const MAX_RESET_IP_REQUESTS = 10
+const CONTACT_WINDOW_MS = 60 * 60 * 1000
+const CONTACT_COOLDOWN_MS = 30 * 1000
+const MAX_CONTACT_EMAIL_REQUESTS = 3
+const MAX_CONTACT_IP_REQUESTS = 5
 const MAX_CONTENT_BYTES = 80_000
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024
@@ -45,6 +51,7 @@ export async function handleRequest(request, env, context) {
       'POST /reset-password': () => claimPassword(request, env, { renderPage: resetPasswordPage, invalidMessage: 'This reset link is no longer valid. Request a new link.' }),
       'GET /reset-password-script.js': () => resetPasswordScript(),
       'GET /api/content': () => getPublicContent(request, env),
+      'POST /api/contact': () => submitContact(request, env),
       'POST /api/setup': () => setup(request, env),
       'POST /api/login': () => login(request, env),
       'POST /api/change-password': () => changePassword(request, env),
@@ -90,7 +97,7 @@ async function sessionOrLoginPage(request, env) {
 async function getPublicContent(request, env) {
   await requireSession(request, env)
   const state = await readSiteState(env)
-  return json({ content: state?.content || null, revision: state?.revision || 0 }, 200, { 'cache-control': 'no-store' })
+  return json({ content: state?.content ? mergeContent(state.content) : null, revision: state?.revision || 0 }, 200, { 'cache-control': 'no-store' })
 }
 
 async function setup(request, env) {
@@ -221,6 +228,98 @@ async function processPasswordResetRequest(request, env, email) {
   }
 }
 
+async function submitContact(request, env) {
+  assertMutationOrigin(request)
+  await requireSession(request, env)
+  const body = await readJson(request, 5_000)
+  const website = String(body.website || '').trim()
+  const startedAt = Number(body.startedAt)
+  const elapsed = Date.now() - startedAt
+
+  if (website) return json({ ok: true })
+  if (!Number.isFinite(startedAt) || elapsed < 1_500 || elapsed > 2 * 60 * 60 * 1000) {
+    throw responseError('Please reopen the form and try again.', 400)
+  }
+
+  const submission = {
+    name: contactText(body.name, 'Name', 80),
+    email: requireEmail(body.email),
+    organization: contactText(body.organization, 'Group or organization', 120, true),
+    eventDate: requireEventDate(body.eventDate),
+    details: contactText(body.details, 'Event details', 1_200),
+  }
+  if (!(await allowContactRequest(request, env, submission.email))) {
+    throw responseError('Too many messages were sent. Please try again later.', 429)
+  }
+  if (!env.CONTACT_EMAIL_TO || (!env.RESEND_API_KEY && !env.EMAIL_TRANSPORT)) {
+    throw responseError('The contact form is temporarily unavailable. Please try again later.', 503)
+  }
+  if (!(await sendContactEmail(env, submission))) {
+    throw responseError('Message could not be sent. Please try again.', 502)
+  }
+  return json({ ok: true })
+}
+
+async function allowContactRequest(request, env, email) {
+  const now = Date.now()
+  const emailKey = `contact:email:${await sha256Base64(email)}`
+  const ipKey = `contact:ip:${await sha256Base64(clientIp(request))}`
+  const [emailLimit, ipLimit] = await Promise.all([
+    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(emailKey).first(),
+    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(ipKey).first(),
+  ])
+  const emailState = nextContactLimit(emailLimit, now)
+  const ipState = nextContactLimit(ipLimit, now)
+  const coolingDown = ipLimit?.last_requested_at && Date.parse(ipLimit.last_requested_at) > now - CONTACT_COOLDOWN_MS
+  const allowed = !coolingDown && emailState.attempts <= MAX_CONTACT_EMAIL_REQUESTS && ipState.attempts <= MAX_CONTACT_IP_REQUESTS
+
+  await env.DB.batch([
+    resetLimitStatement(env, emailKey, emailState),
+    resetLimitStatement(env, ipKey, ipState),
+  ])
+  return allowed
+}
+
+function nextContactLimit(row, now) {
+  const expired = !row || Date.parse(row.window_started) < now - CONTACT_WINDOW_MS
+  return {
+    attempts: expired ? 1 : Number(row.attempts) + 1,
+    windowStarted: expired ? new Date(now).toISOString() : row.window_started,
+    lastRequestedAt: new Date(now).toISOString(),
+  }
+}
+
+async function sendContactEmail(env, submission) {
+  const messageId = crypto.randomUUID()
+  const message = {
+    from: env.CONTACT_EMAIL_FROM || env.RESET_EMAIL_FROM || 'JP Cuts website <jpcuuts@parabolos.com>',
+    to: [requireEmail(env.CONTACT_EMAIL_TO)],
+    reply_to: submission.email,
+    subject: `JP Cuts event inquiry from ${submission.name}`,
+    text: [
+      `Name: ${submission.name}`,
+      `Email: ${submission.email}`,
+      `Group or organization: ${submission.organization || 'Not provided'}`,
+      `Event date: ${submission.eventDate || 'Not provided'}`,
+      '',
+      'Event details:',
+      submission.details,
+    ].join('\n'),
+  }
+  if (env.EMAIL_TRANSPORT) return Boolean((await env.EMAIL_TRANSPORT.send(message))?.sent)
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'content-type': 'application/json',
+      'idempotency-key': `jpcuuts-contact/${messageId}`,
+    },
+    body: JSON.stringify(message),
+  })
+  return response.ok
+}
+
 async function allowPasswordResetRequest(request, env, email) {
   const now = Date.now()
   const emailKey = `email:${await sha256Base64(email)}`
@@ -263,7 +362,7 @@ async function sendPasswordResetEmail(env, { email, token, inviteId }) {
   const origin = passwordResetOrigin(env)
   const resetUrl = `${origin}/reset-password/#token=${token}`
   const message = {
-    from: env.RESET_EMAIL_FROM || 'JP Cuts <numbered@parabolos.com>',
+    from: env.RESET_EMAIL_FROM || 'JP Cuts <jpcuuts@parabolos.com>',
     to: [email],
     subject: 'Reset your JP Cuts password',
     text: `Use this link to choose a new JP Cuts password:\n\n${resetUrl}\n\nThis link expires in 30 minutes and works once. If you did not request this, you can ignore this email.`,
@@ -376,7 +475,7 @@ async function session(request, env) {
 async function getAdminContent(request, env) {
   await requireSession(request, env)
   const state = await readSiteState(env)
-  return json({ content: state?.content || null, revision: state?.revision || 0 })
+  return json({ content: state?.content ? mergeContent(state.content) : null, revision: state?.revision || 0 })
 }
 
 async function updateContent(request, env) {
@@ -385,8 +484,9 @@ async function updateContent(request, env) {
   const body = await readJson(request, MAX_CONTENT_BYTES + 2_000)
   const expectedRevision = Number(body.revision)
   if (!Number.isInteger(expectedRevision) || expectedRevision < 0) throw responseError('A valid revision is required', 400)
-  validateContent(body.content)
-  const contentJson = JSON.stringify(body.content)
+  const content = mergeContent(body.content)
+  validateContent(content)
+  const contentJson = JSON.stringify(content)
   if (new TextEncoder().encode(contentJson).byteLength > MAX_CONTENT_BYTES) throw responseError('Content is too large', 413)
 
   const state = await readSiteState(env)
@@ -549,27 +649,32 @@ function validateContent(content) {
     ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],
   ]
   required.forEach(([path, max]) => plainText(readPath(content, path), path, max))
-  requireUrl(readPath(content, 'booking.url'), ['https:'], 'Booking URL')
-  if (readPath(content, 'contact.email')) requireEmail(readPath(content, 'contact.email'))
-  optionalUrl(readPath(content, 'contact.instagramUrl'), ['https:'], 'Instagram URL')
+  const bookingUrl = requireUrl(readPath(content, 'booking.url'), ['https:'], 'Booking URL')
+  if (bookingUrl !== 'https://calendly.com/jpcuts/30mins') throw responseError('Booking must use the approved Calendly page', 400)
+  const instagramUrl = requireUrl(readPath(content, 'contact.instagramUrl'), ['https:'], 'Instagram URL')
+  if (instagramUrl !== 'https://www.instagram.com/jpcuuts/') throw responseError('Instagram must use the approved @jpcuuts profile', 400)
   optionalUrl(readPath(content, 'contact.facebookUrl'), ['https:'], 'Facebook URL')
   optionalUrl(readPath(content, 'contact.tiktokUrl'), ['https:'], 'TikTok URL')
   optionalUrl(readPath(content, 'contact.youtubeUrl'), ['https:'], 'YouTube URL')
-  optionalUrl(readPath(content, 'events.actionUrl'), ['https:', 'sms:', 'tel:', 'mailto:'], 'Event URL')
-  if (readPath(content, 'featured.type') === 'instagram') {
-    const url = String(readPath(content, 'featured.url') || '')
-    if (!/^https:\/\/(?:www\.)?instagram\.com\/reel\/[A-Za-z0-9_-]+\/?(?:\?.*)?$/.test(url)) {
-      throw responseError('Featured reel must be an Instagram reel URL', 400)
-    }
-  } else optionalMediaUrl(readPath(content, 'featured.url'), 'Featured URL')
-  if (!Array.isArray(content.services) || content.services.length > 8) throw responseError('Use no more than eight services', 400)
+  if (!readPath(content, 'featured.enabled') || readPath(content, 'featured.type') !== 'instagram' || readPath(content, 'featured.url') !== 'https://www.instagram.com/reel/DX1nfUogdFn/') {
+    throw responseError('Featured media must use the approved @jpcuuts Reel', 400)
+  }
+  if (!Array.isArray(content.services) || content.services.length !== 2) throw responseError('Use only the haircut and beard add-on services', 400)
+  const requiredServices = [
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes' },
+    { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '' },
+  ]
   content.services.forEach((service, index) => {
+    const expected = requiredServices[index]
+    if (service.id !== expected.id || service.name !== expected.name || service.price !== expected.price || String(service.duration || '') !== expected.duration || !service.enabled) {
+      throw responseError('Services must remain the $35 haircut and $5 beard trim or shave add-on', 400)
+    }
     plainText(service.name, `Service ${index + 1} name`, 80)
     plainText(service.price, `Service ${index + 1} price`, 30)
     plainText(service.note || '', `Service ${index + 1} note`, 140, true)
   })
   const gallery = readPath(content, 'media.gallery')
-  if (!Array.isArray(gallery) || gallery.length > 9) throw responseError('Use no more than nine gallery items', 400)
+  if (!Array.isArray(gallery) || gallery.length > 12) throw responseError('Use no more than twelve gallery items', 400)
   const beforeAfter = readPath(content, 'media.beforeAfter')
   if (beforeAfter?.enabled) plainText(beforeAfter.heading, 'Before/after heading', 120)
   const media = [
@@ -681,6 +786,19 @@ function requireEmail(value) {
   const email = String(value || '').trim().toLowerCase()
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw responseError('A valid email is required', 400)
   return email
+}
+function contactText(value, label, max, optional = false) {
+  const text = plainText(value, label, max, optional)
+  if (/\r|\n/.test(text) && label !== 'Event details') throw responseError(`${label} must be one line`, 400)
+  return text
+}
+function requireEventDate(value) {
+  const date = String(value || '').trim()
+  if (!date) return ''
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`))) {
+    throw responseError('Event date is invalid', 400)
+  }
+  return date
 }
 function assertMutationOrigin(request) { if (request.headers.get('origin') !== new URL(request.url).origin) throw responseError('Invalid request origin', 403) }
 function clientIp(request) { return request.headers.get('cf-connecting-ip') || 'unknown' }

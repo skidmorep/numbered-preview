@@ -1,0 +1,103 @@
+{
+  "approvedBy": "JP Coffman",
+  "approvedOn": "2026-08-29",
+  "sourceRoot": "Dropbox/virtual staff/6 - Richard Hendricks and Pied Piper/jpcuuts",
+  "assets": [
+    {
+      "file": "public/media/defaults/jp-chair-hero.webp",
+      "role": "hero",
+      "source": "photos/JP cutting/Photo Jun 06 2026, 2 18 51 PM.jpg",
+      "sha256": "d366847280126ac95e5a9011b8eacec6396f7b029f022ba21ac4bd343e818384"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-camo.webp",
+      "role": "camo accent",
+      "source": "derived crop of public/media/defaults/jp-chair-hero.webp",
+      "sha256": "5388d998004fefff24b2e741f2d2c869fb0a85d4a513b4a8d2d6d6e357bee92b"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-before.webp",
+      "role": "before",
+      "source": "photos/before after/Photo Aug 29 2026, 1 19 26 PM.jpg",
+      "sha256": "6bf58fb9f67a5170f4449babe7e8677c100c9be2a7ebef42327d8d3291c087b2"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-after.webp",
+      "role": "after",
+      "source": "photos/before after/Photo Aug 29 2026, 1 19 48 PM.jpg",
+      "sha256": "f655ce21c5198f2e2ae62cb12e143b09f9ac8c908ffb761bddf6acfab64bc6b3"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-work-01.webp",
+      "role": "portfolio",
+      "source": "photos/portfolio cuts/Photo Aug 29 2026, 10 26 50 AM.jpg",
+      "sha256": "7ecd6fbd531a9a6742c01538bcdbffc169b3b0ff4e30eb339c661c8e1bac72ef"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-work-02.webp",
+      "role": "portfolio",
+      "source": "photos/portfolio cuts/Photo Aug 29 2026, 10 21 21 AM.jpg",
+      "sha256": "7fde7f4a2d3563a67c46341d9e195f084db01416e7a0ca2735d74b7a38262349"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-work-03.webp",
+      "role": "portfolio",
+      "source": "photos/portfolio cuts/Photo Aug 29 2026, 12 52 50 PM.jpg",
+      "sha256": "e549acb1758ad3d1e79fa32e37f8e1511b820c98c6ce2709b92e47af9bbebd86"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-portrait.webp",
+      "role": "about portrait",
+      "source": "photos/JP FU Lipscomb/Photo Dec 08 2025, 5 54 57 PM.jpg",
+      "sha256": "9192aad4d7906e8f1e67deafe3d6fd69ab2a413b1e4772a9632588906eec30cc"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-about-02.webp",
+      "role": "about support",
+      "source": "photos/JP FU Lipscomb/Photo Dec 08 2025, 5 54 57 PM.jpg",
+      "sha256": "69e76143d4a6b12d7db1eb9614bd154005889fa21562be8ac400adc7d357c8b4"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-about-03.webp",
+      "role": "about support",
+      "source": "photos/JP FU Lipscomb/Photo Dec 08 2025, 5 54 48 PM.jpg",
+      "sha256": "4ac2e0a433ea16468350e7e0e6ec8b03f814138ed4cf7655f1b308833eaea6eb"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-event-01.webp",
+      "role": "wedding/event set",
+      "source": "photos/group team event/wedding/Photo Jun 06 2026, 2 19 57 PM.jpg",
+      "sha256": "55826e147f801104616580243c6851e6b2f7c1cc7378dc76a601606d44698d06"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-event-02.webp",
+      "role": "wedding/event set",
+      "source": "photos/group team event/wedding/Photo Jun 06 2026, 2 19 48 PM.jpg",
+      "sha256": "e825adab56e751bc772c5f5e3b9ae95019153608ea38b7335fb22d147ddb4d61"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-event-03.webp",
+      "role": "wedding/event set",
+      "source": "photos/group team event/wedding/Photo Jun 06 2026, 2 18 48 PM.jpg",
+      "sha256": "5203011fdd7ef463cf52d91caa4e9b654b1b5caeb01bfb0a3b4f9b8dfd7a1270"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-team-01.webp",
+      "role": "team/group set",
+      "source": "photos/group team event/team/Video May 22 2026, 9 42 47 AM.mov @ 00:00:02",
+      "sha256": "533d166497288fd3bd596309448740869fa326296c33559f296dbdcae85d8b07"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-team-02.webp",
+      "role": "team/group set",
+      "source": "photos/group team event/team/Video May 22 2026, 10 55 57 AM.mov @ 00:00:02",
+      "sha256": "8e1de7f664b210b96be0bf1b4d08f0bfbd6ff56d41c5300974ce5ff05c8d57b7"
+    },
+    {
+      "file": "public/media/defaults/jp-chair-team-03.webp",
+      "role": "team/group set",
+      "source": "photos/group team event/team/Video May 22 2026, 11 33 57 AM.mov @ 00:00:02",
+      "sha256": "7133577e44fae68f18f3147e8ed143722859af2abb426ffacdc411a092605732"
+    }
+  ]
+}

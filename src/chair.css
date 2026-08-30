@@ -186,17 +186,6 @@
 
 .chair-price span { padding: 0 5px; color: var(--chair-olive-dark); }
 
-.chair-verse-mark {
-  position: absolute;
-  inset: auto auto 24px 18px;
-  margin: 0;
-  color: #c5c77d;
-  font-size: .68rem;
-  font-weight: 900;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
-
 .chair-camo {
   min-height: 44px;
   background-color: var(--chair-olive-dark);
@@ -296,6 +285,27 @@
   text-transform: uppercase;
 }
 
+.chair-reel {
+  display: block;
+  background: #fff;
+}
+
+.chair-reel iframe {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  display: block;
+  border: 0;
+  background: #fff;
+}
+
+.chair-reel figcaption {
+  min-height: 54px;
+  padding: 14px 18px;
+  background: var(--chair-ink);
+}
+
+.chair-reel figcaption a { color: inherit; }
+
 .chair-button {
   min-height: 54px;
   display: inline-flex;
@@ -373,12 +383,15 @@
 }
 
 .chair-about-copy > p:not(.chair-outline-label):not(.chair-location),
-.chair-events-copy > p:not(.chair-outline-label) {
+.chair-events-copy > p:not(.chair-outline-label),
+.chair-bio-copy p {
   max-width: 58ch;
   margin: 0;
   font-size: 1rem;
   line-height: 1.65;
 }
+
+.chair-bio-copy { display: grid; gap: 14px; }
 
 .chair-location {
   margin: 0;
@@ -435,6 +448,25 @@
   border-color: var(--chair-sand-light);
 }
 
+.chair-event-groups {
+  display: grid;
+  gap: 34px;
+}
+
+.chair-event-group {
+  display: grid;
+  gap: 12px;
+}
+
+.chair-event-group h3 {
+  margin: 0;
+  color: #c7ca91;
+  font-size: .7rem;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
 .chair-events-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -442,7 +474,105 @@
 }
 
 .chair-events-grid .chair-photo { aspect-ratio: 4 / 5; }
-.chair-events-grid .event-1 { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+.chair-events-grid .chair-photo:first-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+
+.chair-contact {
+  border: 1px solid rgba(238, 228, 207, .46);
+  background: rgba(17, 19, 15, .18);
+}
+
+.chair-contact-toggle {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 0;
+  padding: 14px 18px;
+  color: var(--chair-sand-light);
+  background: transparent;
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.chair-contact-toggle > span:last-child {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.chair-contact-form {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-top: 1px solid rgba(238, 228, 207, .3);
+}
+
+.chair-contact-row {
+  display: grid;
+  gap: 16px;
+}
+
+.chair-contact-form label {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+  color: var(--chair-sand-light);
+  font-size: .72rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+
+.chair-contact-form input,
+.chair-contact-form textarea {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(238, 228, 207, .52);
+  border-radius: 0;
+  padding: 11px 12px;
+  color: var(--chair-ink);
+  background: var(--chair-sand-light);
+  font: inherit;
+}
+
+.chair-contact-form textarea { min-height: 124px; resize: vertical; }
+
+.chair-contact-form > button {
+  min-height: 52px;
+  border: 2px solid var(--chair-sand-light);
+  padding: 12px 18px;
+  color: var(--chair-ink);
+  background: var(--chair-sand-light);
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.chair-contact-form > button:disabled { cursor: wait; opacity: .65; }
+
+.chair-contact-honeypot {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.chair-contact-status {
+  min-height: 1.5em;
+  margin: 0;
+  color: #d9dda4;
+  font-size: .8rem;
+  font-weight: 800;
+}
 
 .chair-booking {
   display: grid;
@@ -524,6 +654,9 @@
   aspect-ratio: 4 / 5;
   overflow: hidden;
   background: #85806e;
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
 }
 
 .before-after-image {
@@ -569,6 +702,7 @@
   margin: 0;
   opacity: 0;
   cursor: ew-resize;
+  touch-action: pan-y;
 }
 
 .before-after input:focus-visible {
@@ -606,6 +740,7 @@
   .chair-section { padding: 96px 7vw; }
   .chair-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chair-about-images { grid-template-rows: repeat(2, 260px); }
+  .chair-contact-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chair-booking { grid-template-columns: 1fr 1fr; }
   .chair-booking > .chair-photo { aspect-ratio: auto; min-height: 690px; }
   .chair-booking > div { align-content: center; padding: 72px 7vw; }
@@ -639,7 +774,6 @@
   .chair-hero > img { object-position: center 43%; }
   .chair-hero-copy { gap: 22px; padding: 180px 3vw 126px; }
   .chair-hero h1 { font-size: clamp(6rem, 8.5vw, 9rem); max-width: 9ch; -webkit-text-stroke-width: 2px; }
-  .chair-verse-mark { inset: auto auto 36px 3vw; }
   .chair-camo { min-height: 52px; border-width: 6px; }
   .chair-camo.is-compact { min-height: 26px; border-width: 3px; }
   .chair-section { gap: 48px; padding: 110px 6vw; }
@@ -667,11 +801,12 @@
   .chair-about { grid-template-columns: .8fr 1.2fr; align-items: center; }
   .chair-about-images { min-height: 660px; grid-template-rows: repeat(2, 1fr); }
   .chair-about blockquote { grid-column: 1 / -1; max-width: 920px; }
-  .chair-events { grid-template-columns: .78fr 1.22fr; align-items: center; }
-  .chair-events-grid .event-1 { grid-column: auto; grid-row: 1 / span 2; aspect-ratio: auto; }
-  .chair-events-grid { grid-template-columns: 1.3fr .7fr; grid-template-rows: repeat(2, 240px); }
+  .chair-events { grid-template-columns: .7fr 1.3fr; align-items: start; }
+  .chair-event-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chair-events-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chair-events-grid .chair-photo:first-child { grid-column: 1 / -1; }
   .chair-footer {
-    grid-template-columns: 1.2fr 1fr 1fr auto;
+    grid-template-columns: 1.2fr 1fr auto;
     align-items: center;
     padding: 52px 4vw;
   }

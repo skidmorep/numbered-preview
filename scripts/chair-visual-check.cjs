@@ -15,21 +15,10 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true })
   const { defaultContent } = await import('../src/siteContent.js')
   const editorContent = structuredClone(defaultContent)
-  editorContent.hero.intro = 'Editor introduction proof.'
-  editorContent.facts.mobile = 'Editor mobile label proof'
-  editorContent.story.heading = 'Editor about heading proof'
   editorContent.services[0].note = 'Editor service note proof'
-  editorContent.events.actionUrl = 'sms:+16155550100'
-  editorContent.featured = {
-    ...editorContent.featured,
-    enabled: true,
-    type: 'image',
-    heading: 'Editor featured heading proof',
-    url: editorContent.media.gallery[0].url,
-  }
+  editorContent.events.actionLabel = 'Editor contact proof'
   const browser = await chromium.launch({ headless: true })
   const report = []
-  const featuredReport = []
 
   try {
     for (const viewport of viewports) {
@@ -74,9 +63,12 @@ async function main() {
           editorMobileLabel: document.querySelector('.chair-booking .chair-kicker')?.textContent.trim(),
           editorAboutHeading: document.querySelector('.chair-about .chair-outline-label')?.textContent.trim(),
           editorFeaturedHeading: document.querySelector('.chair-featured figcaption')?.textContent.trim(),
-          editorFeaturedSource: document.querySelector('.chair-featured img')?.getAttribute('src'),
+          editorFeaturedSource: document.querySelector('.chair-featured iframe')?.getAttribute('src'),
           editorServiceDetails: document.querySelector('.chair-service span')?.textContent.trim(),
-          editorEventUrl: document.querySelector('.chair-events .chair-button')?.getAttribute('href'),
+          editorEventLabel: document.querySelector('.chair-contact-toggle')?.textContent.trim(),
+          eventGroupCount: document.querySelectorAll('.chair-event-group').length,
+          visibleEmailCount: document.querySelectorAll('a[href^="mailto:"]').length + (document.body.innerHTML.includes('jp@jpcuuts.com') ? 1 : 0),
+          forbiddenCopy: /Nashville|Booksy|JP Cutz/i.test(document.body.textContent),
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
           headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
           headerBookVisible: visible('.chair-header-book'),
@@ -117,53 +109,6 @@ async function main() {
       await page.close()
     }
 
-    for (const variant of [
-      {
-        type: 'instagram',
-        heading: 'Instagram featured proof',
-        url: 'https://www.instagram.com/reel/Proof123/',
-        expectedTag: 'A',
-        expectedMediaTag: 'IMG',
-      },
-      {
-        type: 'video',
-        heading: 'Video featured proof',
-        url: '/proof-feature.webm',
-        expectedTag: 'FIGURE',
-        expectedMediaTag: 'VIDEO',
-      },
-      {
-        type: 'image',
-        heading: 'Image featured proof',
-        url: editorContent.media.gallery[0].url,
-        expectedTag: 'FIGURE',
-        expectedMediaTag: 'IMG',
-      },
-    ]) {
-      const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
-      const variantContent = structuredClone(editorContent)
-      variantContent.featured = { ...variantContent.featured, ...variant }
-      await page.route('**/api/content', (route) => route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ content: variantContent }),
-      }))
-      await page.goto(baseUrl, { waitUntil: 'networkidle' })
-      const featured = page.locator('.chair-featured')
-      await featured.scrollIntoViewIfNeeded()
-      const result = await featured.evaluate((node) => {
-        const media = node.querySelector('img, video')
-        return {
-          visible: node.getBoundingClientRect().width > 0 && node.getBoundingClientRect().height > 0,
-          tag: node.tagName,
-          mediaTag: media?.tagName,
-          url: node.tagName === 'A' ? node.getAttribute('href') : media?.getAttribute('src'),
-          text: node.textContent.trim(),
-        }
-      })
-      featuredReport.push({ variant, ...result })
-      await page.close()
-    }
   } finally {
     await browser.close()
   }
@@ -178,28 +123,24 @@ async function main() {
     item.switcherCount ||
     item.camoCount < 3 ||
     item.featuredCount !== 1 ||
-    item.editorIntroduction !== 'Editor introduction proof.' ||
-    item.editorMobileLabel !== 'Editor mobile label proof' ||
-    item.editorAboutHeading !== 'Editor about heading proof' ||
-    item.editorFeaturedHeading !== 'Editor featured heading proof' ||
-    item.editorFeaturedSource !== '/media/defaults/jp-chair-work-01.webp' ||
-    item.editorServiceDetails !== 'About 35 minutes · Editor service note proof' ||
-    item.editorEventUrl !== 'sms:+16155550100' ||
+    !item.editorIntroduction?.includes('Middle Tennessee') ||
+    item.editorMobileLabel !== 'Middle Tennessee' ||
+    item.editorAboutHeading !== 'About JP' ||
+    !item.editorFeaturedHeading?.includes('Open on Instagram') ||
+    item.editorFeaturedSource !== 'https://www.instagram.com/reel/DX1nfUogdFn/embed/' ||
+    item.editorServiceDetails !== '35 minutes · Editor service note proof' ||
+    !item.editorEventLabel?.includes('Editor contact proof') ||
+    item.eventGroupCount !== 2 ||
+    item.visibleEmailCount !== 0 ||
+    item.forbiddenCopy ||
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1)) ||
     item.headline !== 'Your cut. Dialed in.'
   )
-  const featuredFailures = featuredReport.filter((item) =>
-    !item.visible ||
-    item.tag !== item.variant.expectedTag ||
-    item.mediaTag !== item.variant.expectedMediaTag ||
-    item.url !== item.variant.url ||
-    !item.text.includes(item.variant.heading)
-  )
-  fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, featuredReport, failures, featuredFailures }, null, 2))
-  if (failures.length || featuredFailures.length) {
-    throw new Error(`The Chair checks failed: ${JSON.stringify({ failures, featuredFailures }, null, 2)}`)
+  fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))
+  if (failures.length) {
+    throw new Error(`The Chair checks failed: ${JSON.stringify({ failures }, null, 2)}`)
   }
-  console.log(`The Chair responsive checks passed at ${report.length} viewports with all 3 featured media types.`)
+  console.log(`The Chair responsive checks passed at ${report.length} viewports with the approved Instagram Reel embed.`)
 }
 
 main().catch((error) => {
