@@ -64,11 +64,9 @@ function SiteHeader({ content }) {
 
   return (
     <header className="chair-header">
-      <a className="chair-brand" href="#top" aria-label="JP Cuts home">
-        {content.brand.logo?.url
-          ? <img src={content.brand.logo.url} alt="" />
-          : <strong>{content.brand.publicName}</strong>}
-        <span>{content.facts.mobile}</span>
+      <a className={`chair-brand ${content.brand.logo?.url ? 'has-logo' : ''}`} href="#top" aria-label="JP Cuts home">
+        <BrandMark content={content} decorative />
+        <span className="chair-brand-region">{content.facts.mobile}</span>
       </a>
       <nav className="chair-desktop-nav" aria-label="Primary navigation">
         <a href="#work">Work</a>
@@ -104,6 +102,9 @@ function Hero({ content }) {
     <section className="chair-hero" aria-labelledby="chair-hero-heading">
       <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" style={imageFocusStyle(content.media.hero)} />
       <div className="chair-hero-shade" aria-hidden="true" />
+      <div className="chair-hero-brand" aria-label={content.brand.publicName}>
+        <BrandMark content={content} decorative />
+      </div>
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
@@ -323,7 +324,10 @@ function Booking({ content }) {
 function SiteFooter({ content }) {
   return (
     <footer className="chair-footer">
-      <div className="chair-brand"><strong>{content.brand.publicName}</strong><span>{content.facts.mobile}</span></div>
+      <div className={`chair-brand ${content.brand.logo?.url ? 'has-logo' : ''}`} aria-label={content.brand.publicName}>
+        <BrandMark content={content} decorative />
+        <span className="chair-brand-region">{content.facts.mobile}</span>
+      </div>
       <p>{content.locations.fadedUniversity.name} · {content.locations.lipscomb.name}</p>
       <div className="chair-socials" aria-label="JP Cuts on social media">
         {socialLinks.map(([key, label, Icon]) => content.contact[key] && (
@@ -339,6 +343,13 @@ function SiteFooter({ content }) {
 
 function CamoAccent({ compact = false }) {
   return <div className={`chair-camo ${compact ? 'is-compact' : ''}`} aria-hidden="true" />
+}
+
+function BrandMark({ content, decorative = false }) {
+  if (content.brand.logo?.url) {
+    return <img src={content.brand.logo.url} alt={decorative ? '' : (content.brand.logo.alt || content.brand.publicName)} />
+  }
+  return <strong>{content.brand.publicName}</strong>
 }
 
 function Photo({ asset, className = '' }) {

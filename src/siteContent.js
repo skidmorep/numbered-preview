@@ -5,6 +5,8 @@ const media = (name, alt, focus = { x: 50, y: 50 }) => ({
   focus: { x: focus.x, y: focus.y },
 })
 
+export const officialLogoUrl = '/media/defaults/jp-cuts-camo-logo.png'
+
 function safeSocialUrl(value, allowedHosts, fallback = '') {
   try {
     const url = new URL(String(value || ''))
@@ -44,7 +46,7 @@ export const defaultContent = {
     bridgeName: '@jpcuuts',
     logo: {
       type: 'image',
-      url: '',
+      url: officialLogoUrl,
       alt: 'JP Cuts logo',
     },
     verseQuote: 'Even the hairs of your head are all numbered.',
@@ -173,7 +175,7 @@ function migrateContent(incoming) {
         ...defaultContent.brand.logo,
         ...(incoming.brand?.logo || {}),
         type: 'image',
-        url: safeImageMediaUrl(incoming.brand?.logo?.url),
+        url: safeImageMediaUrl(incoming.brand?.logo?.url, officialLogoUrl),
       },
     },
     hero: {

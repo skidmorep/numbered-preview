@@ -112,6 +112,15 @@ async function main() {
           forbiddenCopy: /Nashville|Booksy|JP Cutz/i.test(document.body.textContent),
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
           headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
+          headerLogo: (() => {
+            const box = document.querySelector('.chair-header .chair-brand img')?.getBoundingClientRect()
+            return box ? { visible: box.top < innerHeight && box.bottom > 0, width: Math.round(box.width), height: Math.round(box.height) } : null
+          })(),
+          heroLogo: (() => {
+            const box = document.querySelector('.chair-hero-brand img')?.getBoundingClientRect()
+            return box ? { visible: box.width > 0 && box.height > 0 && box.top < innerHeight && box.bottom > 0, width: Math.round(box.width), height: Math.round(box.height) } : null
+          })(),
+          footerLogoCount: document.querySelectorAll('.chair-footer .chair-brand img').length,
           headerBookVisible: visible('.chair-header-book'),
           heroOfferClear: (() => {
             const offer = document.querySelector('.chair-hero-offer')?.getBoundingClientRect()
@@ -210,6 +219,11 @@ async function main() {
     item.headlineLines.some((line) => !line.insideHero || !line.singleLine) ||
     item.visibleEmailCount !== 0 ||
     item.forbiddenCopy ||
+    !item.headerLogo?.visible ||
+    item.headerLogo.width < 50 ||
+    item.headerLogo.height < 52 ||
+    (item.viewport.height > 650 && (!item.heroLogo?.visible || item.heroLogo.width < 88 || item.heroLogo.height < 96)) ||
+    item.footerLogoCount !== 1 ||
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
     (item.viewport.width >= 960 && (item.persistentMetrics.headerTop !== 0 || !item.headerBookVisible || item.desktopAnchorGeometry?.headingTop < item.desktopAnchorGeometry?.headerBottom)) ||
     item.headline !== 'Create. Connect. Collaborate.'

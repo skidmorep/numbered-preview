@@ -15,7 +15,7 @@ test('bundled content passes the Worker validation contract', () => {
   assert.equal(defaultContent.version, 6)
   assert.equal(defaultContent.services[0].duration, '35 minutes')
   assert.equal(defaultContent.locations.fadedUniversity.address, '113 Front Street, Smyrna, TN 37167')
-  assert.equal(defaultContent.brand.logo.url, '')
+  assert.equal(defaultContent.brand.logo.url, '/media/defaults/jp-cuts-camo-logo.png')
   assert.equal(defaultContent.hero.eyebrow, 'MIDDLE TENNESSEE')
   assert.equal(defaultContent.story.subtitle, 'Clean cuts. Easy conversation. No pretense.')
   assert.equal(defaultContent.events.outlineHeading, 'GROUP CUTS')
@@ -137,12 +137,16 @@ test('current owner media gains safe focus defaults without replacing URLs, alt 
   assert.deepEqual(merged.media.gallery[2].focus, { x: 19, y: 81 })
 })
 
-test('stored logo migration preserves approved images and drops invalid or video paths', () => {
+test('stored logo migration preserves approved images and restores the official logo for blank or unsafe paths', () => {
   const approved = structuredClone(defaultContent)
   approved.brand.logo.url = '/uploads/11111111-1111-1111-1111-111111111111.webp'
   approved.brand.logo.alt = 'Owner-authored JP logo alt text'
   assert.equal(mergeContent(approved).brand.logo.url, approved.brand.logo.url)
   assert.equal(mergeContent(approved).brand.logo.alt, approved.brand.logo.alt)
+
+  const blank = structuredClone(defaultContent)
+  blank.brand.logo.url = ''
+  assert.equal(mergeContent(blank).brand.logo.url, defaultContent.brand.logo.url)
 
   for (const unsafe of [
     'https://images.example/logo.webp',
@@ -151,7 +155,7 @@ test('stored logo migration preserves approved images and drops invalid or video
   ]) {
     const stored = structuredClone(defaultContent)
     stored.brand.logo.url = unsafe
-    assert.equal(mergeContent(stored).brand.logo.url, '')
+    assert.equal(mergeContent(stored).brand.logo.url, defaultContent.brand.logo.url)
   }
 })
 

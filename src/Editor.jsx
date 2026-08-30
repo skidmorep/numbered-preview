@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { imageFocusStyle, mergeContent } from './siteContent'
+import { imageFocusStyle, mergeContent, officialLogoUrl } from './siteContent'
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -108,7 +108,7 @@ export function Editor({ defaults }) {
           <p className="editor-help">This content publishes directly into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
-          <EditorSection title="Brand & logo" description="Upload JP’s authentic logo when the original file is available. Until then, the public site uses the honest JP CUTS text wordmark.">
+          <EditorSection title="Brand & logo" description="JP’s official camo logo is active. Upload a replacement here only when JP approves a new source file.">
             <LogoUploader logo={content.brand.logo} update={update} setStatus={setStatus} />
           </EditorSection>
 
@@ -265,7 +265,7 @@ function LogoUploader({ logo, update, setStatus }) {
     <form className="logo-uploader" onSubmit={upload}>
       <label className="field"><span>JP logo — upload authentic file</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
       <button type="submit">{logo?.url ? 'Replace logo' : 'Upload logo'}</button>
-      {logo?.url && <button type="button" className="secondary-button" onClick={() => { update('brand.logo', { type: 'image', url: '', alt: 'JP Cuts logo' }); setStatus('Logo removed from this draft. Save changes to return to the text wordmark.') }}>Remove logo</button>}
+      {logo?.url !== officialLogoUrl && <button type="button" className="secondary-button" onClick={() => { update('brand.logo', { type: 'image', url: officialLogoUrl, alt: 'JP Cuts logo' }); setStatus('Official JP Cuts logo restored in this draft. Save changes to publish it.') }}>Use official logo</button>}
       <p>PNG, JPEG, WebP, or AVIF; 6 MB max. SVG files are not accepted.</p>
     </form>
   </div>
