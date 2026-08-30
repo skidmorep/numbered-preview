@@ -108,13 +108,24 @@ export function Editor({ defaults }) {
           <p className="editor-help">This content publishes directly into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
-          <EditorSection title="Basics" description="The approved JP Cuts profile, location, and booking destination are locked. Update the main headline or button label.">
+          <EditorSection title="Hero & booking" description="Update the first-screen message and booking label. The approved Calendly destination stays protected.">
+            <Field label="Hero eyebrow" value={content.hero.eyebrow} onChange={(value) => update('hero.eyebrow', value)} maxLength={120} />
             <Field label="Hero headline" value={content.hero.headline} onChange={(value) => update('hero.headline', value)} maxLength={90} />
-            <Field label="Booking button" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
-            <p className="editor-help">Bookings use the approved Calendly page.</p>
+            <Field label="Booking button label" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
+            <Field label="Final booking heading" value={content.booking.heading} onChange={(value) => update('booking.heading', value)} maxLength={120} />
+            <LockedField label="Booking URL · approved" value={content.booking.url} />
+            <p className="editor-help">Every booking button uses this label and the protected Calendly page. Pricing remains the approved $35 haircut, about 35 minutes, with an optional $5 beard trim or shave.</p>
           </EditorSection>
 
-          <EditorSection title="Services" description="Pricing and availability are fixed. Update the supporting notes only.">
+          <EditorSection title="Work section" description="These fields control the title and Instagram call to action above JP’s haircut portfolio.">
+            <Field label="Outline heading" value={content.work.eyebrow} onChange={(value) => update('work.eyebrow', value)} maxLength={120} />
+            <Field label="Main heading" value={content.work.heading} onChange={(value) => update('work.heading', value)} textarea rows={2} maxLength={160} />
+            <Field label="Instagram button label" value={content.work.instagramLabel} onChange={(value) => update('work.instagramLabel', value)} maxLength={60} />
+          </EditorSection>
+
+          <EditorSection title="Services" description="Update the section headings and supporting notes. The approved service facts stay protected.">
+            <Field label="Outline heading" value={content.servicesSection.eyebrow} onChange={(value) => update('servicesSection.eyebrow', value)} maxLength={120} />
+            <Field label="Main heading" value={content.servicesSection.heading} onChange={(value) => update('servicesSection.heading', value)} textarea rows={2} maxLength={160} />
             <div className="service-editor">
               {content.services.map((service, index) => (
                 <div className="service-edit-row" key={service.id}>
@@ -125,17 +136,53 @@ export function Editor({ defaults }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="Photos" description="Replace the hero, JP portrait, before/after pair, or gallery with approved JP Cuts images. The Instagram Reel is fixed.">
+          <EditorSection title="About JP" description="Update JP’s introduction, biography, subtitle, location line, and Matthew 10:30 detail.">
+            <Field label="Outline heading" value={content.story.heading} onChange={(value) => update('story.heading', value)} maxLength={120} />
+            <Field label="About subtitle" value={content.story.subtitle} onChange={(value) => update('story.subtitle', value)} maxLength={160} />
+            <Field label="About introduction" value={content.hero.intro} onChange={(value) => update('hero.intro', value)} textarea rows={3} maxLength={360} />
+            <Field label="Biography" value={content.story.body} onChange={(value) => update('story.body', value)} textarea rows={12} maxLength={1400} />
+            <Field label="Location line" value={content.facts.location} onChange={(value) => update('facts.location', value)} maxLength={120} />
+            <Field label="Short location label" value={content.facts.mobile} onChange={(value) => update('facts.mobile', value)} maxLength={60} />
+            <div className="field-grid two">
+              <Field label="Verse quote" value={content.brand.verseQuote} onChange={(value) => update('brand.verseQuote', value)} maxLength={180} />
+              <Field label="Verse reference" value={content.brand.verseReference} onChange={(value) => update('brand.verseReference', value)} maxLength={80} />
+            </div>
+          </EditorSection>
+
+          <EditorSection title="Events, groups & teams" description="The two large display headings are independent. Event messages still use the private contact form.">
+            <label className="check-field"><input type="checkbox" checked={content.events.enabled} onChange={(event) => update('events.enabled', event.target.checked)} /> Show events section</label>
+            <div className="field-grid two">
+              <Field label="Outline heading" value={content.events.outlineHeading} onChange={(value) => update('events.outlineHeading', value)} maxLength={120} />
+              <Field label="Filled heading" value={content.events.heading} onChange={(value) => update('events.heading', value)} maxLength={120} />
+            </div>
+            <Field label="Events body copy" value={content.events.body} onChange={(value) => update('events.body', value)} textarea rows={5} maxLength={700} />
+            <Field label="Contact form button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
+            <div className="field-grid two">
+              <Field label="First photo-group heading" value={content.events.weddingHeading} onChange={(value) => update('events.weddingHeading', value)} maxLength={100} />
+              <Field label="Second photo-group heading" value={content.events.teamHeading} onChange={(value) => update('events.teamHeading', value)} maxLength={100} />
+            </div>
+            <p className="editor-help">Form field labels and send/error messages stay structural so the contact path remains understandable and accessible. JP’s email address is never published in the page or content API.</p>
+          </EditorSection>
+
+          <EditorSection title="Instagram Reel & social links" description="Choose the Reel and decide whether a clean outbound Reel card appears. The site never embeds Instagram’s scrolling mini-page.">
+            <label className="check-field"><input type="checkbox" checked={content.featured.enabled} onChange={(event) => update('featured.enabled', event.target.checked)} /> Publish Reel link card on the homepage</label>
+            <Field label="Instagram Reel URL" value={content.featured.url} onChange={(value) => update('featured.url', value)} type="url" maxLength={240} />
+            <Field label="Reel card label" value={content.featured.heading} onChange={(value) => update('featured.heading', value)} maxLength={120} />
+            <LockedField label="Primary Instagram · approved" value={content.contact.instagramUrl} />
+            <Field label="Final Instagram button label" value={content.booking.instagramLabel} onChange={(value) => update('booking.instagramLabel', value)} maxLength={60} />
+            <div className="field-grid three">
+              <Field label="Facebook URL" value={content.contact.facebookUrl} onChange={(value) => update('contact.facebookUrl', value)} type="url" maxLength={240} />
+              <Field label="TikTok URL" value={content.contact.tiktokUrl} onChange={(value) => update('contact.tiktokUrl', value)} type="url" maxLength={240} />
+              <Field label="YouTube URL" value={content.contact.youtubeUrl} onChange={(value) => update('contact.youtubeUrl', value)} type="url" maxLength={240} />
+            </div>
+            <p className="editor-help">When published, the card opens this exact Reel on instagram.com. When off, the Reel stays selected here but is absent from the public layout.</p>
+          </EditorSection>
+
+          <EditorSection title="Photos" description="Replace the hero, JP portrait, before/after pair, or gallery with approved JP Cuts images.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
             <MediaFocusManager content={content} update={update} />
             <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
             <Field label="Before/after heading" value={content.media.beforeAfter.heading} onChange={(value) => update('media.beforeAfter.heading', value)} maxLength={120} />
-            <p className="editor-help">The approved @jpcuuts Reel stays embedded on the homepage.</p>
-          </EditorSection>
-
-          <EditorSection title="About JP & events" description="The approved biography, Matthew 10:30 detail, Middle Tennessee language, event copy, and social destinations are locked.">
-            <Field label="Contact form button" value={content.events.actionLabel} onChange={(value) => update('events.actionLabel', value)} maxLength={60} />
-            <p className="editor-help">Event messages use the private website form. JP’s email address is never published in the page or content API.</p>
           </EditorSection>
           {user?.role === 'owner' && <OwnerAccess setStatus={setStatus} />}
         </main>
@@ -329,6 +376,7 @@ function OwnerAccess({ setStatus }) {
 
 function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-mark">JP</span><b>JP CUTS</b></div>{children}</main> }
 function EditorSection({ title, description, children }) { return <section className="editor-section"><header><h2>{title}</h2><p>{description}</p></header><div className="editor-fields">{children}</div></section> }
+function LockedField({ label, value }) { return <label className="field is-locked"><span>{label}</span><input value={value} readOnly aria-readonly="true" /></label> }
 
 function Field({ label, onChange, textarea = false, value, ...props }) {
   const Element = textarea ? 'textarea' : 'input'

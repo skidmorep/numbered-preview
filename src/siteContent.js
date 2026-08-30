@@ -5,8 +5,26 @@ const media = (name, alt, focus = { x: 50, y: 50 }) => ({
   focus: { x: focus.x, y: focus.y },
 })
 
+function safeHttpsUrl(value, fallback = '') {
+  try {
+    const url = new URL(String(value || ''))
+    return url.protocol === 'https:' && url.hostname ? url.toString() : fallback
+  } catch { return fallback }
+}
+
+function safeInstagramReelUrl(value) {
+  try {
+    const url = new URL(String(value || ''))
+    return url.protocol === 'https:'
+      && url.hostname === 'www.instagram.com'
+      && /^\/reel\/[A-Za-z0-9_-]+\/?$/.test(url.pathname)
+      ? url.toString()
+      : defaultContent.featured.url
+  } catch { return defaultContent.featured.url }
+}
+
 export const defaultContent = {
-  version: 4,
+  version: 5,
   revision: 0,
   brand: {
     publicName: 'JP CUTS',
@@ -15,16 +33,27 @@ export const defaultContent = {
     verseReference: 'Matthew 10:30',
   },
   hero: {
-    eyebrow: 'Smyrna barber · Middle Tennessee',
+    eyebrow: 'MIDDLE TENNESSEE',
     headline: 'Your cut. Dialed in.',
     intro: 'JP delivers clean, precise cuts for clients across Smyrna and Middle Tennessee.',
+  },
+  work: {
+    eyebrow: 'Fresh cut',
+    heading: 'Real cuts.\nReal clients.',
+    instagramLabel: 'See more on Instagram',
   },
   booking: {
     label: 'Book a cut',
     url: 'https://calendly.com/jpcuts/30mins',
+    heading: 'Ready for your next cut?',
+    instagramLabel: 'Follow @jpcuuts',
+  },
+  servicesSection: {
+    eyebrow: 'Services',
+    heading: 'Simple pricing.\nNo surprises.',
   },
   services: [
-    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes', note: 'Book through Calendly', enabled: true },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes', note: 'Book through Calendly', enabled: true },
     { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '', note: 'Add-on with a haircut', enabled: true },
   ],
   facts: {
@@ -62,7 +91,7 @@ export const defaultContent = {
     },
   },
   featured: {
-    enabled: true,
+    enabled: false,
     type: 'instagram',
     heading: 'From JP',
     url: 'https://www.instagram.com/reel/DX1nfUogdFn/',
@@ -70,13 +99,17 @@ export const defaultContent = {
   },
   story: {
     heading: 'About JP',
+    subtitle: 'Clean cuts. Easy conversation. No pretense.',
     body: 'Have you ever been bored and decided to do something crazy? For me, that meant shaving my brother’s head 10 years ago. What I thought was just a good prank eventually turned into a passion.\n\nWhen I got to college, I realized that people needed more than just haircuts, they needed a place to belong. That realization inspired me to pursue barber school after graduating from college and prepared me to turn that passion into a career.\n\nToday, I get to combine my passion for barbering with my passion for people—providing professional services while creating a space where you feel known, connected, and confident.',
   },
   events: {
     enabled: true,
-    heading: 'Cuts for events, groups, and teams.',
+    outlineHeading: 'GROUP CUTS',
+    heading: 'EVENTS & TEAMS',
     body: 'Planning cuts for a team, wedding, pop-up, church, or youth event? Send JP the date, headcount, and location to start the conversation.',
     actionLabel: 'Ask about your event',
+    weddingHeading: 'Weddings & events',
+    teamHeading: 'Teams & groups',
   },
   contact: {
     phone: '',
@@ -89,37 +122,83 @@ export const defaultContent = {
 
 function migrateContent(incoming) {
   if (!incoming) return incoming
-  const legacy = Number(incoming.version || 0) < defaultContent.version
+  const incomingVersion = Number(incoming.version || 0)
+  const legacyContract = incomingVersion < 4
+  const legacyMedia = legacyContract
+  const schemaUpgrade = incomingVersion < defaultContent.version
   const serviceNotes = new Map((incoming.services || []).map((service) => [service.id, service.note]))
 
   return {
     ...incoming,
     version: defaultContent.version,
-    brand: defaultContent.brand,
+    brand: {
+      ...defaultContent.brand,
+      ...(legacyContract ? {} : incoming.brand),
+      publicName: defaultContent.brand.publicName,
+      bridgeName: defaultContent.brand.bridgeName,
+    },
     hero: {
       ...defaultContent.hero,
+      ...incoming.hero,
+      eyebrow: schemaUpgrade ? defaultContent.hero.eyebrow : (incoming.hero?.eyebrow || defaultContent.hero.eyebrow),
+      intro: legacyContract ? defaultContent.hero.intro : (incoming.hero?.intro || defaultContent.hero.intro),
       headline: incoming.hero?.headline
         || incoming.hero?.headlines?.cutRecord
         || defaultContent.hero.headline,
     },
+    work: {
+      ...defaultContent.work,
+      ...incoming.work,
+    },
     booking: {
       ...defaultContent.booking,
-      label: incoming.booking?.label || defaultContent.booking.label,
+      ...incoming.booking,
+      url: defaultContent.booking.url,
+    },
+    servicesSection: {
+      ...defaultContent.servicesSection,
+      ...incoming.servicesSection,
     },
     services: defaultContent.services.map((service) => ({
       ...service,
       note: serviceNotes.get(service.id) || service.note,
     })),
-    facts: defaultContent.facts,
+    facts: {
+      ...defaultContent.facts,
+      ...(legacyContract ? {} : incoming.facts),
+      priceRange: defaultContent.facts.priceRange,
+      bookingTruth: defaultContent.facts.bookingTruth,
+    },
     proof: defaultContent.proof,
-    story: defaultContent.story,
+    story: {
+      ...defaultContent.story,
+      ...(legacyContract ? {} : incoming.story),
+      subtitle: schemaUpgrade ? defaultContent.story.subtitle : (incoming.story?.subtitle || defaultContent.story.subtitle),
+    },
     events: {
       ...defaultContent.events,
-      actionLabel: incoming.events?.actionLabel || defaultContent.events.actionLabel,
+      ...(legacyContract ? { actionLabel: incoming.events?.actionLabel } : incoming.events),
+      outlineHeading: schemaUpgrade ? defaultContent.events.outlineHeading : (incoming.events?.outlineHeading || defaultContent.events.outlineHeading),
+      heading: schemaUpgrade ? defaultContent.events.heading : (incoming.events?.heading || defaultContent.events.heading),
     },
-    contact: defaultContent.contact,
-    media: legacy ? defaultContent.media : (incoming.media || defaultContent.media),
-    featured: defaultContent.featured,
+    contact: {
+      ...defaultContent.contact,
+      ...(legacyContract ? {} : incoming.contact),
+      phone: '',
+      instagramUrl: defaultContent.contact.instagramUrl,
+      facebookUrl: legacyContract ? defaultContent.contact.facebookUrl : safeHttpsUrl(incoming.contact?.facebookUrl, defaultContent.contact.facebookUrl),
+      tiktokUrl: legacyContract ? defaultContent.contact.tiktokUrl : safeHttpsUrl(incoming.contact?.tiktokUrl, defaultContent.contact.tiktokUrl),
+      youtubeUrl: legacyContract ? defaultContent.contact.youtubeUrl : safeHttpsUrl(incoming.contact?.youtubeUrl, defaultContent.contact.youtubeUrl),
+    },
+    media: legacyMedia ? defaultContent.media : (incoming.media || defaultContent.media),
+    featured: {
+      ...defaultContent.featured,
+      ...(legacyContract ? {} : incoming.featured),
+      enabled: schemaUpgrade ? false : Boolean(incoming.featured?.enabled),
+      type: 'instagram',
+      url: legacyContract ? defaultContent.featured.url : safeInstagramReelUrl(incoming.featured?.url),
+      posterUrl: defaultContent.featured.posterUrl,
+    },
   }
 }
 
@@ -174,9 +253,4 @@ export function mergeContent(incoming) {
 export function imageFocusStyle(asset) {
   const focus = asset?.focus || centeredFocus
   return { objectPosition: `${focus.x}% ${focus.y}%` }
-}
-
-export function instagramEmbedUrl(url) {
-  const match = String(url || '').match(/instagram\.com\/reel\/([A-Za-z0-9_-]+)/)
-  return match ? `https://www.instagram.com/reel/${match[1]}/embed/` : ''
 }

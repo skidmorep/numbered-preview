@@ -12,6 +12,12 @@ test('bundled content passes the Worker validation contract', () => {
   assert.equal(defaultContent.contact.email, undefined)
   assert.equal(defaultContent.events.actionUrl, undefined)
   assert.equal(defaultContent.brand.publicName, 'JP CUTS')
+  assert.equal(defaultContent.version, 5)
+  assert.equal(defaultContent.hero.eyebrow, 'MIDDLE TENNESSEE')
+  assert.equal(defaultContent.story.subtitle, 'Clean cuts. Easy conversation. No pretense.')
+  assert.equal(defaultContent.events.outlineHeading, 'GROUP CUTS')
+  assert.equal(defaultContent.events.heading, 'EVENTS & TEAMS')
+  assert.equal(defaultContent.featured.enabled, false)
   assert.equal(defaultContent.booking.url, 'https://calendly.com/jpcuts/30mins')
   assert.deepEqual(defaultContent.services.map(({ name, price }) => ({ name, price })), [
     { name: 'Haircut', price: '$35' },
@@ -45,9 +51,9 @@ test('legacy content migration preserves the chosen headline while enforcing app
   legacy.events.actionUrl = 'mailto:public@example.com'
 
   const migrated = mergeContent(legacy)
-  assert.equal(migrated.version, 4)
+  assert.equal(migrated.version, 5)
   assert.equal(migrated.brand.publicName, 'JP CUTS')
-  assert.match(migrated.hero.eyebrow, /Middle Tennessee/)
+  assert.equal(migrated.hero.eyebrow, 'MIDDLE TENNESSEE')
   assert.match(migrated.hero.intro, /Middle Tennessee/)
   assert.equal(migrated.hero.headline, 'Owner-authored headline.')
   assert.equal(migrated.booking.url, 'https://calendly.com/jpcuts/30mins')
@@ -59,6 +65,58 @@ test('legacy content migration preserves the chosen headline while enforcing app
   assert.equal(migrated.events.actionUrl, undefined)
   assert.doesNotMatch(JSON.stringify(migrated), /Unused second headline/)
   assert.deepEqual(migrated.media.hero.focus, defaultContent.media.hero.focus)
+})
+
+test('version 4 owner content upgrades merge-safely while applying the requested display changes', () => {
+  const stored = structuredClone(defaultContent)
+  stored.version = 4
+  stored.hero.eyebrow = 'Smyrna barber · Middle Tennessee'
+  stored.hero.headline = 'Owner headline'
+  stored.hero.intro = 'Owner introduction'
+  stored.booking.label = 'Owner booking label'
+  delete stored.booking.heading
+  delete stored.booking.instagramLabel
+  delete stored.work
+  delete stored.servicesSection
+  stored.services[0].duration = '35 minutes'
+  stored.services[0].note = 'Owner haircut note'
+  stored.story.heading = 'Owner about heading'
+  stored.story.body = 'Owner biography'
+  delete stored.story.subtitle
+  stored.events.heading = 'Owner former event heading'
+  stored.events.body = 'Owner events body'
+  stored.events.actionLabel = 'Owner contact label'
+  delete stored.events.outlineHeading
+  delete stored.events.weddingHeading
+  delete stored.events.teamHeading
+  stored.featured.enabled = true
+  stored.featured.heading = 'Owner Reel label'
+  stored.featured.url = 'https://www.instagram.com/reel/OwnerChoice123/'
+  stored.contact.facebookUrl = 'https://www.facebook.com/owner-choice'
+  stored.media.hero.url = '/uploads/11111111-1111-1111-1111-111111111111.webp'
+  stored.media.hero.focus = { x: 45, y: 13 }
+
+  const upgraded = mergeContent(stored)
+  assert.equal(upgraded.version, 5)
+  assert.equal(upgraded.hero.eyebrow, 'MIDDLE TENNESSEE')
+  assert.equal(upgraded.hero.headline, 'Owner headline')
+  assert.equal(upgraded.hero.intro, 'Owner introduction')
+  assert.equal(upgraded.booking.label, 'Owner booking label')
+  assert.equal(upgraded.services[0].duration, 'About 35 minutes')
+  assert.equal(upgraded.services[0].note, 'Owner haircut note')
+  assert.equal(upgraded.story.heading, 'Owner about heading')
+  assert.equal(upgraded.story.subtitle, 'Clean cuts. Easy conversation. No pretense.')
+  assert.equal(upgraded.story.body, 'Owner biography')
+  assert.equal(upgraded.events.outlineHeading, 'GROUP CUTS')
+  assert.equal(upgraded.events.heading, 'EVENTS & TEAMS')
+  assert.equal(upgraded.events.body, 'Owner events body')
+  assert.equal(upgraded.events.actionLabel, 'Owner contact label')
+  assert.equal(upgraded.featured.enabled, false)
+  assert.equal(upgraded.featured.heading, 'Owner Reel label')
+  assert.equal(upgraded.featured.url, 'https://www.instagram.com/reel/OwnerChoice123/')
+  assert.equal(upgraded.contact.facebookUrl, 'https://www.facebook.com/owner-choice')
+  assert.equal(upgraded.media.hero.url, stored.media.hero.url)
+  assert.deepEqual(upgraded.media.hero.focus, { x: 45, y: 13 })
 })
 
 test('current owner media gains safe focus defaults without replacing URLs, alt text, order, or copy', () => {
@@ -124,7 +182,7 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     assertResponseError(() => validateContent(content), 400)
   })
 
-  await t.test('booking and Instagram reject unapproved destinations', () => {
+  await t.test('booking, primary Instagram, and Reel controls reject unapproved destinations', () => {
     const content = structuredClone(defaultContent)
     content.booking.url = 'https://example.com/book'
     assertResponseError(() => validateContent(content), 400)
@@ -132,11 +190,15 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     content.contact.instagramUrl = 'https://www.instagram.com/wrongbarber/'
     assertResponseError(() => validateContent(content), 400)
     content.contact.instagramUrl = defaultContent.contact.instagramUrl
-    content.featured.url = 'https://www.instagram.com/reel/WrongReel/'
+    content.featured.url = 'https://evil.example/reel/WrongReel/'
     assertResponseError(() => validateContent(content), 400)
     content.featured.url = defaultContent.featured.url
     content.featured.type = 'video'
     assertResponseError(() => validateContent(content), 400)
+    content.featured.type = 'instagram'
+    content.featured.enabled = true
+    content.featured.url = 'https://www.instagram.com/reel/AnotherOwnerChoice/'
+    assert.equal(validateContent(content), true)
   })
 
   await t.test('additional or repriced services are rejected', () => {
@@ -407,7 +469,7 @@ test('authenticated content endpoint safely returns bundled-fallback state and s
   assert.equal(body.content, null)
   assert.equal(body.revision, 0)
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive')
-  assert.match(response.headers.get('content-security-policy'), /frame-src https:\/\/www\.instagram\.com/)
+  assert.match(response.headers.get('content-security-policy'), /frame-src 'none'/)
   assert.equal(response.headers.get('access-control-allow-origin'), null)
 })
 
@@ -418,7 +480,7 @@ test('authenticated content endpoint removes forbidden fields from stored legacy
   legacy.events.actionUrl = 'mailto:jp@jpcuuts.com'
   legacy.booking.url = 'https://wrong.example/booksy'
   legacy.facts.location = 'Nashville'
-  legacy.featured.url = 'https://www.instagram.com/reel/wrong/'
+  legacy.featured.url = 'https://evil.example/reel/wrong/'
   const env = authenticatedEnv(legacy)
   const response = await handleRequest(new Request('https://numbered.test/api/content', {
     headers: { cookie: sessionCookie },
@@ -427,9 +489,10 @@ test('authenticated content endpoint removes forbidden fields from stored legacy
   const serialized = JSON.stringify(body)
 
   assert.equal(response.status, 200)
-  assert.equal(body.content.version, 4)
+  assert.equal(body.content.version, 5)
   assert.equal(body.content.booking.url, 'https://calendly.com/jpcuts/30mins')
   assert.equal(body.content.featured.url, 'https://www.instagram.com/reel/DX1nfUogdFn/')
+  assert.equal(body.content.featured.enabled, false)
   assert.doesNotMatch(serialized, /jp@jpcuuts\.com|mailto:|booksy|nashville|reel\/wrong/i)
 })
 

@@ -646,11 +646,19 @@ function validateContent(content) {
   const required = [
     ['brand.publicName', 80], ['brand.verseQuote', 180], ['brand.verseReference', 80],
     ['hero.eyebrow', 120], ['hero.headline', 90], ['hero.intro', 360],
-    ['booking.label', 50], ['story.heading', 120], ['story.body', 700],
-    ['facts.priceRange', 30], ['facts.location', 80], ['facts.mobile', 60],
-    ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],
+    ['work.eyebrow', 120], ['work.heading', 160], ['work.instagramLabel', 60],
+    ['booking.label', 50], ['booking.heading', 120], ['booking.instagramLabel', 60],
+    ['servicesSection.eyebrow', 120], ['servicesSection.heading', 160],
+    ['story.heading', 120], ['story.subtitle', 160], ['story.body', 1400],
+    ['facts.priceRange', 30], ['facts.location', 120], ['facts.mobile', 60],
+    ['events.outlineHeading', 120], ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],
+    ['events.weddingHeading', 100], ['events.teamHeading', 100],
+    ['featured.heading', 120],
   ]
   required.forEach(([path, max]) => plainText(readPath(content, path), path, max))
+  if (readPath(content, 'brand.publicName') !== 'JP CUTS' || readPath(content, 'brand.bridgeName') !== '@jpcuuts') {
+    throw responseError('Brand identity must remain JP CUTS and @jpcuuts', 400)
+  }
   const bookingUrl = requireUrl(readPath(content, 'booking.url'), ['https:'], 'Booking URL')
   if (bookingUrl !== 'https://calendly.com/jpcuts/30mins') throw responseError('Booking must use the approved Calendly page', 400)
   const instagramUrl = requireUrl(readPath(content, 'contact.instagramUrl'), ['https:'], 'Instagram URL')
@@ -658,12 +666,14 @@ function validateContent(content) {
   optionalUrl(readPath(content, 'contact.facebookUrl'), ['https:'], 'Facebook URL')
   optionalUrl(readPath(content, 'contact.tiktokUrl'), ['https:'], 'TikTok URL')
   optionalUrl(readPath(content, 'contact.youtubeUrl'), ['https:'], 'YouTube URL')
-  if (!readPath(content, 'featured.enabled') || readPath(content, 'featured.type') !== 'instagram' || readPath(content, 'featured.url') !== 'https://www.instagram.com/reel/DX1nfUogdFn/') {
-    throw responseError('Featured media must use the approved @jpcuuts Reel', 400)
+  if (typeof readPath(content, 'featured.enabled') !== 'boolean' || readPath(content, 'featured.type') !== 'instagram') {
+    throw responseError('Featured media must be an optional Instagram Reel link', 400)
   }
+  const reelUrl = requireUrl(readPath(content, 'featured.url'), ['https:'], 'Instagram Reel URL')
+  if (!/^https:\/\/www\.instagram\.com\/reel\/[A-Za-z0-9_-]+\/$/.test(reelUrl)) throw responseError('Use a direct instagram.com Reel URL', 400)
   if (!Array.isArray(content.services) || content.services.length !== 2) throw responseError('Use only the haircut and beard add-on services', 400)
   const requiredServices = [
-    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes' },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes' },
     { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '' },
   ]
   content.services.forEach((service, index) => {
@@ -936,7 +946,7 @@ function finalize(response) {
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   headers.set('x-frame-options', 'DENY')
   headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
-  headers.set('content-security-policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; frame-src https://www.instagram.com; connect-src 'self'")
+  headers.set('content-security-policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; frame-src 'none'; connect-src 'self'")
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }
 

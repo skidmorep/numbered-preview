@@ -178,6 +178,7 @@
 .field-grid.three { grid-template-columns: repeat(3, minmax(0,1fr)); }
 .field { min-width: 0; display: grid; gap: 6px; color: #453d35; font-size: .76rem; font-weight: 800; }
 .field input, .field textarea, .field select { width: 100%; min-height: 44px; border: 1px solid #c8bdae; border-radius: 0; padding: 10px 11px; color: #171513; background: white; font-weight: 500; }
+.field.is-locked input { color: #5e554c; background: #e9e0d4; cursor: not-allowed; }
 .field textarea { min-height: 100px; resize: vertical; line-height: 1.45; }
 .check-field { display: inline-flex; align-items: center; gap: 8px; color: #443c34; font-size: .78rem; font-weight: 800; }
 .check-field input { width: 18px; height: 18px; accent-color: var(--red); }

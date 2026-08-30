@@ -8,7 +8,7 @@ import {
   YoutubeLogo,
 } from '@phosphor-icons/react'
 import { BeforeAfterSlider } from './BeforeAfterSlider'
-import { imageFocusStyle, instagramEmbedUrl } from './siteContent'
+import { imageFocusStyle } from './siteContent'
 
 const socialLinks = [
   ['instagramUrl', 'Instagram', InstagramLogo],
@@ -60,7 +60,7 @@ function SiteHeader({ content }) {
         <a href="#about">About</a>
         <a href={content.contact.instagramUrl} target="_blank" rel="noreferrer">@jpcuuts</a>
       </nav>
-      <ExternalButton href={content.booking.url} className="chair-header-book">Book a cut</ExternalButton>
+      <ExternalButton href={content.booking.url} className="chair-header-book">{content.booking.label}</ExternalButton>
       <button
         type="button"
         className="chair-menu-trigger"
@@ -76,7 +76,7 @@ function SiteHeader({ content }) {
         <a href="#services" onClick={close}>Services</a>
         <a href="#about" onClick={close}>About</a>
         {content.events.enabled && <a href="#events" onClick={close}>Events</a>}
-        <ExternalButton href={content.booking.url}>Book a cut</ExternalButton>
+        <ExternalButton href={content.booking.url}>{content.booking.label}</ExternalButton>
       </nav>
     </header>
   )
@@ -90,7 +90,11 @@ function Hero({ content }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
-        <p className="chair-price">{content.facts.priceRange} <span>·</span> 35 minutes</p>
+        <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
+          <span>{content.booking.label}</span>
+          <strong>{content.services[0].price} · {content.services[0].duration}</strong>
+        </a>
+        <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>
       </div>
     </section>
   )
@@ -101,8 +105,8 @@ function Work({ content }) {
   return (
     <section className="chair-section chair-work" id="work">
       <header className="chair-section-heading">
-        <p className="chair-outline-label">Fresh cut</p>
-        <h2>Real cuts.<br />Real clients.</h2>
+        <p className="chair-outline-label">{content.work.eyebrow}</p>
+        <h2><MultilineText text={content.work.heading} /></h2>
       </header>
       {content.media.beforeAfter.enabled && (
         <BeforeAfterSlider before={content.media.beforeAfter.before} after={content.media.beforeAfter.after} heading={content.media.beforeAfter.heading} />
@@ -111,7 +115,7 @@ function Work({ content }) {
         {work.map((asset, index) => <Photo key={asset.url} asset={asset} className={`work-${index + 1}`} />)}
       </div>
       <FeaturedMedia content={content} />
-      <ExternalButton href={content.contact.instagramUrl} className="chair-outline-button">See more on Instagram</ExternalButton>
+      <ExternalButton href={content.contact.instagramUrl} className="chair-outline-button">{content.work.instagramLabel}</ExternalButton>
     </section>
   )
 }
@@ -120,8 +124,8 @@ function Services({ content }) {
   return (
     <section className="chair-section chair-services" id="services">
       <header className="chair-section-heading">
-        <p className="chair-outline-label">Services</p>
-        <h2>Simple pricing.<br />No surprises.</h2>
+        <p className="chair-outline-label">{content.servicesSection.eyebrow}</p>
+        <h2><MultilineText text={content.servicesSection.heading} /></h2>
       </header>
       <div className="chair-service-grid">
         {content.services.filter((service) => service.enabled).map((service) => (
@@ -132,18 +136,17 @@ function Services({ content }) {
           </article>
         ))}
       </div>
-      <ExternalButton href={content.booking.url}>Book your cut</ExternalButton>
+      <ExternalButton href={content.booking.url}>{content.booking.label}</ExternalButton>
     </section>
   )
 }
 
 function About({ content }) {
-  const support = content.media.gallery.slice(3, 5)
   return (
     <section className="chair-section chair-about" id="about">
       <div className="chair-about-copy">
         <p className="chair-outline-label">{content.story.heading}</p>
-        <h2>Clean cuts. Easy conversation. No pretense.</h2>
+        <h2>{content.story.subtitle}</h2>
         <p className="chair-about-intro">{content.hero.intro}</p>
         <div className="chair-bio-copy">
           {String(content.story.body || '').split(/\n\s*\n/).filter(Boolean).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
@@ -152,7 +155,6 @@ function About({ content }) {
       </div>
       <div className="chair-about-images">
         <Photo asset={content.media.portrait} className="about-main" />
-        {support.map((asset, index) => <Photo key={asset.url} asset={asset} className={`about-support-${index + 1}`} />)}
       </div>
       <blockquote>
         “{content.brand.verseQuote}”
@@ -168,14 +170,14 @@ function Events({ content }) {
   return (
     <section className="chair-section chair-events" id="events">
       <div className="chair-events-copy">
-        <p className="chair-outline-label">Events · Groups · Teams</p>
+        <p className="chair-outline-label">{content.events.outlineHeading}</p>
         <h2>{content.events.heading}</h2>
         <p>{content.events.body}</p>
         <ContactAccordion label={content.events.actionLabel} />
       </div>
       <div className="chair-event-groups">
-        <EventPhotoGroup heading="Weddings & events" photos={weddingPhotos} group="wedding" />
-        <EventPhotoGroup heading="Teams & groups" photos={teamPhotos} group="team" />
+        <EventPhotoGroup heading={content.events.weddingHeading} photos={weddingPhotos} group="wedding" />
+        <EventPhotoGroup heading={content.events.teamHeading} photos={teamPhotos} group="team" />
       </div>
     </section>
   )
@@ -262,10 +264,10 @@ function Booking({ content }) {
       <Photo asset={content.media.hero} />
       <div>
         <p className="chair-kicker">{content.facts.mobile}</p>
-        <h2>Ready for your next cut?</h2>
-        <p className="chair-price">{content.facts.priceRange} <span>·</span> 35 minutes</p>
+        <h2>{content.booking.heading}</h2>
+        <p className="chair-price">{content.services[0].price} <span>·</span> {content.services[0].duration}</p>
         <ExternalButton href={content.booking.url}>{content.booking.label}</ExternalButton>
-        <ExternalButton href={content.contact.instagramUrl} className="chair-outline-button">Follow @jpcuuts</ExternalButton>
+        <ExternalButton href={content.contact.instagramUrl} className="chair-outline-button">{content.booking.instagramLabel}</ExternalButton>
       </div>
     </section>
   )
@@ -300,19 +302,11 @@ function Photo({ asset, className = '' }) {
 function FeaturedMedia({ content }) {
   if (!content.featured.enabled || !content.featured.url) return null
   if (content.featured.type === 'instagram') {
-    const embedUrl = instagramEmbedUrl(content.featured.url)
-    if (!embedUrl) return null
     return (
-      <figure className="chair-featured chair-reel">
-        <iframe
-          src={embedUrl}
-          title={content.featured.heading || 'Featured Instagram Reel from JP'}
-          loading="lazy"
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-          allowFullScreen
-        />
-        <figcaption>{content.featured.heading || 'Featured Reel'} · <a href={content.featured.url} target="_blank" rel="noreferrer">Open on Instagram</a></figcaption>
-      </figure>
+      <a className="chair-featured chair-reel-link" href={content.featured.url} target="_blank" rel="noreferrer">
+        <img src={content.featured.posterUrl || content.media.gallery[0]?.url} alt="" loading="lazy" />
+        <span>{content.featured.heading || 'Watch JP’s Reel'} · Open on Instagram →</span>
+      </a>
     )
   }
   if (content.featured.type === 'video') {
@@ -351,4 +345,8 @@ function HeroHeadline({ text }) {
   return parts.filter(Boolean).map((part, index) => (
     <span key={part}>{part}.{index < parts.length - 1 ? ' ' : ''}</span>
   ))
+}
+
+function MultilineText({ text }) {
+  return String(text || '').split(/\n+/).filter(Boolean).map((line, index) => <span key={`${line}-${index}`}>{line}{index === String(text || '').split(/\n+/).filter(Boolean).length - 1 ? '' : <br />}</span>)
 }

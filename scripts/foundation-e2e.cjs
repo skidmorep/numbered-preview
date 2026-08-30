@@ -79,20 +79,24 @@ async function main() {
       hasVisibleEmail: document.body.innerHTML.includes('jp@jpcuuts.com') || Boolean(document.querySelector('a[href^="mailto:"]')),
       bodyText: document.body.textContent,
       verse: document.querySelector('.chair-about blockquote')?.textContent.trim(),
-      reelSource: document.querySelector('.chair-reel iframe')?.getAttribute('src'),
+      reelCount: document.querySelectorAll('.chair-featured').length,
       eventGroupCount: document.querySelectorAll('.chair-event-group').length,
       bioParagraphs: document.querySelectorAll('.chair-bio-copy p').length,
+      aboutImageCount: document.querySelectorAll('.chair-about-images .chair-photo').length,
+      eventHeadings: [...document.querySelectorAll('.chair-events .chair-outline-label, .chair-events h2')].map((node) => node.textContent.trim()),
     }))
     if (publicState.scrollWidth > publicState.width + 1) throw new Error('Public page overflows horizontally')
     if (publicState.publicName !== 'JP CUTS') throw new Error('JP Cuts public name is missing')
     if (publicState.hasVisibleEmail) throw new Error('Public email or mailto link is exposed')
     if (!publicState.bodyText.includes('Middle Tennessee') || /Nashville|Booksy|JP Cutz/i.test(publicState.bodyText)) throw new Error('Public location or identity copy is stale')
     if ((publicState.bodyText.match(/\bnumbered\b/gi) || []).length !== 1) throw new Error('Numbered language appears outside the single Matthew 10:30 quotation')
-    if (!publicState.bodyText.includes('Haircut$3535 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
+    if (!publicState.bodyText.includes('Haircut$35About 35 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
     if (!publicState.verse?.includes('Matthew 10:30')) throw new Error('Verse detail is missing')
-    if (publicState.reelSource !== 'https://www.instagram.com/reel/DX1nfUogdFn/embed/') throw new Error('Approved Instagram Reel is not embedded')
+    if (publicState.reelCount !== 0) throw new Error('Instagram Reel should be intentionally absent by default')
     if (publicState.eventGroupCount !== 2) throw new Error('Both event photo sets are not rendered')
     if (publicState.bioParagraphs !== 3) throw new Error('The supplied three-paragraph bio is not rendered')
+    if (publicState.aboutImageCount !== 1) throw new Error('About JP must render only the approved portrait')
+    if (publicState.eventHeadings.join('|') !== 'GROUP CUTS|EVENTS & TEAMS') throw new Error('Independent event display headings are missing')
 
     await page.route('**/api/contact', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }))
     const contact = page.locator('.chair-contact')

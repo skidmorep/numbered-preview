@@ -55,24 +55,29 @@ async function main() {
     await headline.fill(originalHeadline)
     await saveAndWait(page)
     const baseline = await readJson(page, '/api/admin/content')
+    if (baseline.content.version !== 5) throw new Error(`Content schema remained at version ${baseline.content.version}`)
+    if (baseline.content.hero.eyebrow !== 'MIDDLE TENNESSEE') throw new Error('Hero eyebrow was not migrated to MIDDLE TENNESSEE')
+    if (baseline.content.events.outlineHeading !== 'GROUP CUTS' || baseline.content.events.heading !== 'EVENTS & TEAMS') throw new Error('Independent event headings were not migrated')
+    if (baseline.content.featured.enabled !== false) throw new Error('Reel should remain selected but unpublished')
 
-    const focusEditor = page.locator('.focus-editor')
-    await focusEditor.getByLabel('Horizontal').fill('37')
-    await focusEditor.getByLabel('Vertical').fill('28')
+    const teamHeading = page.getByLabel('Second photo-group heading')
+    const originalTeamHeading = await teamHeading.inputValue()
+    await teamHeading.fill(`${originalTeamHeading} · editor check`)
     await saveAndWait(page)
     live = await readJson(page, '/api/content')
-    if (live.content.media.hero.focus.x !== 37 || live.content.media.hero.focus.y !== 28) throw new Error('Focus point did not publish')
+    if (!live.content.events.teamHeading.endsWith('editor check')) throw new Error('Event heading did not publish')
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.getByRole('heading', { name: 'Content editor' }).waitFor()
-    if (await page.locator('.focus-editor input[type="range"]').first().inputValue() !== '37') throw new Error('Focus point did not persist after reload')
+    if (!(await page.getByLabel('Second photo-group heading').inputValue()).endsWith('editor check')) throw new Error('Event heading did not persist after reload')
     const publicPage = await context.newPage()
     await publicPage.goto(baseUrl, { waitUntil: 'domcontentloaded' })
-    const objectPosition = await publicPage.locator('.chair-hero > img').evaluate((image) => getComputedStyle(image).objectPosition)
-    if (objectPosition !== '37% 28%') throw new Error(`Published focus rendered as ${objectPosition}`)
+    const renderedHeading = await publicPage.locator('.chair-event-group h3').last().textContent()
+    if (!renderedHeading.endsWith('editor check')) throw new Error(`Published event heading rendered as ${renderedHeading}`)
     await publicPage.close()
     await restore(page, baseline.content, live.revision)
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.getByRole('heading', { name: 'Content editor' }).waitFor()
+    if (await page.getByLabel('Second photo-group heading').inputValue() !== originalTeamHeading) throw new Error('Event heading restore did not persist')
 
     const disguisedStatus = await page.evaluate(async () => {
       const form = new FormData()
@@ -85,7 +90,7 @@ async function main() {
     console.log(JSON.stringify({
       repeatedLoginAndIsolatedContext: 'passed',
       textPublishAndRestore: 'passed',
-      focusPublishReloadRenderAndRestore: 'passed',
+      eventHeadingPublishReloadRenderAndRestore: 'passed',
       disguisedUploadRejection: 'passed',
       finalRevision: (await readJson(page, '/api/content')).revision,
     }))
