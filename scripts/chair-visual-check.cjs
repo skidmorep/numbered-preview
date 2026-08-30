@@ -14,6 +14,17 @@ const viewports = [
 async function main() {
   fs.mkdirSync(outputDir, { recursive: true })
   const { defaultContent } = await import('../src/siteContent.js')
+  const editorContent = structuredClone(defaultContent)
+  editorContent.hero.intro = 'Editor introduction proof.'
+  editorContent.facts.mobile = 'Editor mobile label proof'
+  editorContent.story.heading = 'Editor about heading proof'
+  editorContent.featured = {
+    ...editorContent.featured,
+    enabled: true,
+    type: 'image',
+    heading: 'Editor featured heading proof',
+    url: editorContent.media.gallery[0].url,
+  }
   const browser = await chromium.launch({ headless: true })
   const report = []
 
@@ -26,7 +37,7 @@ async function main() {
       await page.route('**/api/content', (route) => route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ content: defaultContent }),
+        body: JSON.stringify({ content: editorContent }),
       }))
       const response = await page.goto(baseUrl, { waitUntil: 'networkidle' })
       await page.locator('.chair-hero > img').waitFor({ state: 'visible' })
@@ -56,6 +67,11 @@ async function main() {
           tan: getComputedStyle(document.querySelector('.chair-work')).backgroundColor,
           camoCount: document.querySelectorAll('.chair-camo').length,
           featuredCount: document.querySelectorAll('.chair-featured').length,
+          editorIntroduction: document.querySelector('.chair-about-intro')?.textContent.trim(),
+          editorMobileLabel: document.querySelector('.chair-booking .chair-kicker')?.textContent.trim(),
+          editorAboutHeading: document.querySelector('.chair-about .chair-outline-label')?.textContent.trim(),
+          editorFeaturedHeading: document.querySelector('.chair-featured figcaption')?.textContent.trim(),
+          editorFeaturedSource: document.querySelector('.chair-featured img')?.getAttribute('src'),
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
           headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
           headerBookVisible: visible('.chair-header-book'),
@@ -109,6 +125,11 @@ async function main() {
     item.switcherCount ||
     item.camoCount < 3 ||
     item.featuredCount !== 1 ||
+    item.editorIntroduction !== 'Editor introduction proof.' ||
+    item.editorMobileLabel !== 'Editor mobile label proof' ||
+    item.editorAboutHeading !== 'Editor about heading proof' ||
+    item.editorFeaturedHeading !== 'Editor featured heading proof' ||
+    item.editorFeaturedSource !== '/media/defaults/jp-chair-work-01.webp' ||
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1)) ||
     item.headline !== 'Your cut. Dialed in.'
   )
