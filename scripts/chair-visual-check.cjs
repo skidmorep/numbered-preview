@@ -117,10 +117,25 @@ async function main() {
             return box ? { visible: box.top < innerHeight && box.bottom > 0, width: Math.round(box.width), height: Math.round(box.height) } : null
           })(),
           heroLogo: (() => {
-            const box = document.querySelector('.chair-hero-brand img')?.getBoundingClientRect()
-            return box ? { visible: box.width > 0 && box.height > 0 && box.top < innerHeight && box.bottom > 0, width: Math.round(box.width), height: Math.round(box.height) } : null
+            const node = document.querySelector('.chair-hero-brand img')
+            const box = node?.getBoundingClientRect()
+            const shell = node?.parentElement
+            return box ? { visible: box.width > 0 && box.height > 0 && box.top < innerHeight && box.bottom > 0, width: Math.round(box.width), height: Math.round(box.height), filter: getComputedStyle(node).filter, background: shell ? getComputedStyle(shell).backgroundColor : null } : null
+          })(),
+          mobileBookLogo: (() => {
+            const node = document.querySelector('.chair-mobile-book-mark img')
+            const box = node?.getBoundingClientRect()
+            const panel = node?.parentElement?.getBoundingClientRect()
+            const bar = node?.closest('.chair-mobile-book')?.getBoundingClientRect()
+            return box ? { visible: box.width > 0 && box.height > 0, width: Math.round(box.width), height: Math.round(box.height), naturalWidth: node.naturalWidth, panelRatio: panel && bar?.width ? panel.width / bar.width : 0 } : null
+          })(),
+          mobileBookColors: (() => {
+            const copy = document.querySelector('.chair-mobile-book-copy')
+            const mark = document.querySelector('.chair-mobile-book-mark')
+            return copy && mark ? { copy: getComputedStyle(copy).backgroundColor, mark: getComputedStyle(mark).backgroundColor } : null
           })(),
           footerLogoCount: document.querySelectorAll('.chair-footer .chair-brand img').length,
+          mobileHeaderBrandVisible: visible('.chair-header .chair-brand'),
           headerBookVisible: visible('.chair-header-book'),
           heroOfferClear: (() => {
             const offer = document.querySelector('.chair-hero-offer')?.getBoundingClientRect()
@@ -219,13 +234,15 @@ async function main() {
     item.headlineLines.some((line) => !line.insideHero || !line.singleLine) ||
     item.visibleEmailCount !== 0 ||
     item.forbiddenCopy ||
-    !item.headerLogo?.visible ||
-    item.headerLogo.width < 50 ||
-    item.headerLogo.height < 52 ||
-    (item.viewport.height > 650 && (!item.heroLogo?.visible || item.heroLogo.width < 88 || item.heroLogo.height < 96)) ||
+    !item.heroLogo?.visible ||
+    item.heroLogo.width < (item.viewport.height <= 650 ? 60 : 100) ||
+    item.heroLogo.height < (item.viewport.height <= 650 ? 64 : 108) ||
+    item.heroLogo.background !== 'rgba(0, 0, 0, 0)' ||
+    !item.heroLogo.filter?.includes('brightness(0)') ||
+    !item.heroLogo.filter?.includes('invert(1)') ||
     item.footerLogoCount !== 1 ||
-    (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
-    (item.viewport.width >= 960 && (item.persistentMetrics.headerTop !== 0 || !item.headerBookVisible || item.desktopAnchorGeometry?.headingTop < item.desktopAnchorGeometry?.headerBottom)) ||
+    (item.viewport.width < 960 && (item.headerLogo?.visible || item.mobileHeaderBrandVisible || !item.mobileBookLogo?.visible || !item.mobileBookLogo.naturalWidth || item.mobileBookLogo.panelRatio < .24 || item.mobileBookLogo.panelRatio > .34 || item.mobileBookColors?.copy === item.mobileBookColors?.mark || item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
+    (item.viewport.width >= 960 && (!item.headerLogo?.visible || item.headerLogo.width < 50 || item.headerLogo.height < 52 || item.persistentMetrics.headerTop !== 0 || !item.headerBookVisible || item.desktopAnchorGeometry?.headingTop < item.desktopAnchorGeometry?.headerBottom)) ||
     item.headline !== 'Create. Connect. Collaborate.'
   )
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))

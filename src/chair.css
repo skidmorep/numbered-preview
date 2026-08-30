@@ -95,7 +95,11 @@
 .chair-desktop-nav,
 .chair-header-book { display: none; }
 
+.chair-header .chair-brand { display: none; }
+
 .chair-menu-trigger {
+  grid-column: 2;
+  justify-self: end;
   width: 44px;
   height: 44px;
   display: grid;
@@ -170,10 +174,6 @@
   height: 120px;
   display: grid;
   place-items: center;
-  padding: 11px;
-  border: 1px solid rgba(255, 255, 255, .62);
-  background: rgba(238, 228, 207, .95);
-  box-shadow: 0 16px 38px rgba(0, 0, 0, .28);
 }
 
 .chair-hero-brand img {
@@ -181,6 +181,7 @@
   height: 100%;
   display: block;
   object-fit: contain;
+  filter: brightness(0) invert(1) drop-shadow(0 5px 16px rgba(0, 0, 0, .38));
 }
 
 .chair-hero-brand strong {
@@ -783,13 +784,12 @@
   z-index: 105;
   min-height: 68px;
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 74%) minmax(82px, 26%);
   align-items: center;
-  gap: 12px;
-  padding-inline: 18px;
-  padding-bottom: env(safe-area-inset-bottom);
+  gap: 0;
+  padding: 0;
   color: var(--chair-ink);
-  background: #8a8d4f;
+  background: var(--chair-sand-light);
   text-decoration: none;
   font-size: .86rem;
   font-weight: 900;
@@ -797,7 +797,36 @@
   text-transform: uppercase;
 }
 
-.chair-mobile-book small { font-size: .62rem; letter-spacing: .06em; }
+.chair-mobile-book-copy {
+  min-width: 0;
+  align-self: stretch;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px 0 18px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #8a8d4f;
+}
+
+.chair-mobile-book-copy small { font-size: .62rem; letter-spacing: .06em; }
+
+.chair-mobile-book-mark {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding: 7px 10px;
+  padding-bottom: calc(7px + env(safe-area-inset-bottom));
+  border-left: 1px solid rgba(17, 19, 15, .24);
+  background: var(--chair-sand-light);
+}
+
+.chair-mobile-book-mark img {
+  width: 48px;
+  height: 52px;
+  display: block;
+  object-fit: contain;
+}
 
 .before-after {
   width: 100%;
@@ -897,7 +926,7 @@
 
 @media (max-width: 719px) and (max-height: 650px) {
   .chair-hero { min-height: 100svh; height: 100svh; }
-  .chair-hero-brand { display: none; }
+  .chair-hero-brand { top: 84px; width: 64px; height: 68px; }
   .chair-hero-copy { gap: 8px; padding: 100px 18px 82px; }
   .chair-hero-offer { padding-top: 4px; }
   .chair-hero-book { min-height: 52px; padding-block: 11px; }
@@ -930,6 +959,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
   }
   .chair-brand strong { font-size: 1.65rem; }
+  .chair-header .chair-brand { display: grid; }
   .chair-header .chair-brand img { width: 60px; height: 64px; padding: 6px; }
   .chair-desktop-nav {
     display: flex;
@@ -953,7 +983,6 @@
     left: max(4vw, calc((100vw - 1400px) / 2));
     width: 132px;
     height: 140px;
-    padding: 13px;
   }
   .chair-hero-copy { gap: 22px; padding: 180px 3vw 126px; }
   .chair-hero-book { min-height: 62px; }

@@ -39,8 +39,13 @@ export function PublicSite({ content, contentStatus }) {
       </main>
       <SiteFooter content={content} />
       <a className="chair-mobile-book" href={content.booking.url} target="_blank" rel="noreferrer">
-        <span>{content.booking.label}</span>
-        <small>{content.services[0].price} · 35 min</small>
+        <span className="chair-mobile-book-copy">
+          <span>{content.booking.label}</span>
+          <small>{content.services[0].price} · 35 min</small>
+        </span>
+        <span className="chair-mobile-book-mark" aria-hidden="true">
+          <BrandMark content={content} decorative />
+        </span>
       </a>
     </div>
   )
