@@ -5,9 +5,10 @@ const path = require('node:path')
 const baseUrl = process.env.JPCUUTS_PREVIEW_URL || 'http://127.0.0.1:8791'
 const outputDir = process.env.JPCUUTS_PROOF_DIR || path.resolve('proof/the-chair')
 const viewports = [
+  { name: 'iphone-320', width: 320, height: 568, touch: true },
   { name: 'iphone', width: 390, height: 844, touch: true },
   { name: 'tablet-portrait', width: 768, height: 1024, touch: true },
-  { name: 'tablet-landscape', width: 1024, height: 768 },
+  { name: 'macbook-air-13', width: 1280, height: 832 },
   { name: 'desktop', width: 1440, height: 900 },
 ]
 
@@ -15,6 +16,7 @@ async function main() {
   fs.mkdirSync(outputDir, { recursive: true })
   const { defaultContent } = await import('../src/siteContent.js')
   const editorContent = structuredClone(defaultContent)
+  editorContent.hero.headline = 'Create. Connect. Collaborate.'
   editorContent.work.eyebrow = 'Editor work heading'
   editorContent.servicesSection.eyebrow = 'Editor services heading'
   editorContent.services[0].note = 'Editor service note proof'
@@ -89,12 +91,33 @@ async function main() {
           heroBookingHref: document.querySelector('.chair-hero-book')?.href,
           heroBookingHeight: Math.round(document.querySelector('.chair-hero-book')?.getBoundingClientRect().height || 0),
           heroBookingText: document.querySelector('.chair-hero-book')?.textContent.trim(),
+          heroOfferText: document.querySelector('.chair-hero-offer')?.textContent.trim(),
           heroAddonText: document.querySelector('.chair-hero-addon')?.textContent.trim(),
+          fadedLocationText: document.querySelector('.chair-location-grid article:first-child')?.textContent.trim(),
+          lipscombLocationText: document.querySelector('.chair-location-grid article:last-child')?.textContent.trim(),
+          headlineLines: [...document.querySelectorAll('.chair-hero h1 span')].map((node) => {
+            const box = node.getBoundingClientRect()
+            const hero = document.querySelector('.chair-hero').getBoundingClientRect()
+            return {
+              text: node.textContent.trim(),
+              left: Math.round(box.left),
+              right: Math.round(box.right),
+              top: Math.round(box.top),
+              bottom: Math.round(box.bottom),
+              insideHero: box.left >= hero.left - 1 && box.right <= hero.right + 1,
+              singleLine: box.height <= Number.parseFloat(getComputedStyle(node).lineHeight) + 2,
+            }
+          }),
           visibleEmailCount: document.querySelectorAll('a[href^="mailto:"]').length + (document.body.innerHTML.includes('jp@jpcuuts.com') ? 1 : 0),
           forbiddenCopy: /Nashville|Booksy|JP Cutz/i.test(document.body.textContent),
           headline: document.querySelector('.chair-hero h1')?.textContent.trim(),
           headerHeight: Math.round(document.querySelector('.chair-header')?.getBoundingClientRect().height || 0),
           headerBookVisible: visible('.chair-header-book'),
+          heroOfferClear: (() => {
+            const offer = document.querySelector('.chair-hero-offer')?.getBoundingClientRect()
+            const sticky = document.querySelector('.chair-mobile-book')?.getBoundingClientRect()
+            return !offer || !sticky || sticky.height === 0 || (offer.top >= 0 && offer.bottom <= sticky.top + 1)
+          })(),
         }
       })
 
@@ -165,7 +188,7 @@ async function main() {
     !item.editorIntroduction?.includes('Middle Tennessee') ||
     item.editorMobileLabel !== 'Middle Tennessee' ||
     item.editorAboutHeading !== 'About JP' ||
-    item.editorServiceDetails !== 'About 35 minutes · Editor service note proof' ||
+    item.editorServiceDetails !== '35 minutes · Editor service note proof' ||
     !item.editorEventLabel?.includes('Editor contact proof') ||
     item.editorWorkHeading !== 'Editor work heading' ||
     item.editorServicesHeading !== 'Editor services heading' ||
@@ -175,20 +198,27 @@ async function main() {
     item.aboutImageCount !== 1 ||
     item.aboutSubtitle !== 'Clean cuts. Easy conversation. No pretense.' ||
     item.heroBookingHref !== 'https://calendly.com/jpcuts/30mins' ||
-    item.heroBookingHeight < 76 ||
-    !item.heroBookingText?.includes('$35 · About 35 minutes') ||
+    item.heroBookingHeight < 52 ||
+    item.heroBookingText !== 'Book a cut' ||
+    !item.heroOfferText?.includes('$35Haircut · 35 minutes') ||
+    !item.heroOfferClear ||
     !item.heroAddonText?.includes('Optional shave or beard trim · +$5') ||
+    !item.fadedLocationText?.includes('113 Front Street, Smyrna, TN 37167') ||
+    !item.fadedLocationText?.includes('Tuesday–Friday, 9:00am–3:00pm; Saturday, 8:00am–2:00pm') ||
+    !item.lipscombLocationText?.includes('majority of his business') ||
+    item.headlineLines.length !== 3 ||
+    item.headlineLines.some((line) => !line.insideHero || !line.singleLine) ||
     item.visibleEmailCount !== 0 ||
     item.forbiddenCopy ||
     (item.viewport.width < 960 && (item.headerHeight > 90 || item.headerBookVisible || !item.mobileMenuGeometry?.menuVisible || item.mobileMenuGeometry.menuTop < item.mobileMenuGeometry.headerBottom - 1 || item.persistentMetrics.mobileBookBottom !== item.persistentMetrics.viewportHeight || item.bottomClearance < -1)) ||
     (item.viewport.width >= 960 && (item.persistentMetrics.headerTop !== 0 || !item.headerBookVisible || item.desktopAnchorGeometry?.headingTop < item.desktopAnchorGeometry?.headerBottom)) ||
-    item.headline !== 'Your cut. Dialed in.'
+    item.headline !== 'Create. Connect. Collaborate.'
   )
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report, failures }, null, 2))
   if (failures.length) {
     throw new Error(`The Chair checks failed: ${JSON.stringify({ failures }, null, 2)}`)
   }
-  console.log(`The Chair responsive checks passed at ${report.length} viewports with persistent booking and the Reel intentionally absent.`)
+  console.log(`The Chair responsive checks passed at ${report.length} required viewports with exact booking, availability, single-line headline geometry, and the Reel intentionally absent.`)
 }
 
 main().catch((error) => {

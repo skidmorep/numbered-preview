@@ -69,7 +69,7 @@ export function Editor({ defaults }) {
   }
 
   const save = async () => {
-    setStatus('Publishing preview…')
+    setStatus('Saving changes…')
     try {
       const payload = await api('/api/admin/content', {
         method: 'PUT',
@@ -77,7 +77,7 @@ export function Editor({ defaults }) {
       })
       setRevision(payload.revision)
       setDirty(false)
-      setStatus(`Published revision ${payload.revision}.`)
+      setStatus(`Saved — preview updated (revision ${payload.revision}).`)
     } catch (error) {
       setStatus(error.message)
     }
@@ -98,7 +98,7 @@ export function Editor({ defaults }) {
   return (
     <div className="editor-app">
       <header className="editor-header">
-        <div><span className="editor-mark">JP</span><div><p>JP Cuts preview</p><h1>Content editor</h1></div></div>
+        <div><span className="editor-wordmark">JP CUTS</span><div><p>Private preview</p><h1>Content editor</h1></div></div>
         <div className="editor-account"><span>{user?.email}</span><button type="button" className="link-button" onClick={logout}>Log out</button></div>
       </header>
       <div className="editor-layout">
@@ -108,13 +108,32 @@ export function Editor({ defaults }) {
           <p className="editor-help">This content publishes directly into the selected JP Cuts design. Empty optional sections stay hidden.</p>
         </aside>
         <main className="editor-main">
+          <EditorSection title="Brand & logo" description="Upload JP’s authentic logo when the original file is available. Until then, the public site uses the honest JP CUTS text wordmark.">
+            <LogoUploader logo={content.brand.logo} update={update} setStatus={setStatus} />
+          </EditorSection>
+
           <EditorSection title="Hero & booking" description="Update the first-screen message and booking label. The approved Calendly destination stays protected.">
             <Field label="Hero eyebrow" value={content.hero.eyebrow} onChange={(value) => update('hero.eyebrow', value)} maxLength={120} />
             <Field label="Hero headline" value={content.hero.headline} onChange={(value) => update('hero.headline', value)} maxLength={90} />
             <Field label="Booking button label" value={content.booking.label} onChange={(value) => update('booking.label', value)} maxLength={50} />
             <Field label="Final booking heading" value={content.booking.heading} onChange={(value) => update('booking.heading', value)} maxLength={120} />
             <LockedField label="Booking URL · approved" value={content.booking.url} />
-            <p className="editor-help">Every booking button uses this label and the protected Calendly page. Pricing remains the approved $35 haircut, about 35 minutes, with an optional $5 beard trim or shave.</p>
+            <p className="editor-help">Every booking button uses this label and the protected Calendly page. Pricing remains the approved $35 haircut, 35 minutes, with an optional $5 beard trim or shave.</p>
+          </EditorSection>
+
+          <EditorSection title="Locations & availability" description="Keep Faded University and Lipscomb separate so clients understand where and when JP cuts.">
+            <fieldset className="location-fields"><legend>Faded University</legend>
+              <LockedField label="Location name" value={content.locations.fadedUniversity.name} />
+              <Field label="Faded University street address" value={content.locations.fadedUniversity.address} onChange={(value) => update('locations.fadedUniversity.address', value)} maxLength={160} />
+              <Field label="JP’s school hours at Faded University" value={content.locations.fadedUniversity.hours} onChange={(value) => update('locations.fadedUniversity.hours', value)} maxLength={180} />
+              <Field label="Faded University booking note" value={content.locations.fadedUniversity.bookingNote} onChange={(value) => update('locations.fadedUniversity.bookingNote', value)} maxLength={180} />
+            </fieldset>
+            <fieldset className="location-fields"><legend>Lipscomb</legend>
+              <LockedField label="Location name" value={content.locations.lipscomb.name} />
+              <Field label="Lipscomb appointment note" value={content.locations.lipscomb.businessNote} onChange={(value) => update('locations.lipscomb.businessNote', value)} textarea rows={3} maxLength={260} />
+              <Field label="Lipscomb location note" value={content.locations.lipscomb.locationNote} onChange={(value) => update('locations.lipscomb.locationNote', value)} maxLength={180} />
+            </fieldset>
+            <p className="editor-help">These are JP’s school hours, not Faded University business hours or walk-in availability. Clients should use Calendly to book.</p>
           </EditorSection>
 
           <EditorSection title="Work section" description="These fields control the title and Instagram call to action above JP’s haircut portfolio.">
@@ -136,13 +155,11 @@ export function Editor({ defaults }) {
             </div>
           </EditorSection>
 
-          <EditorSection title="About JP" description="Update JP’s introduction, biography, subtitle, location line, and Matthew 10:30 detail.">
+          <EditorSection title="About JP" description="Update JP’s introduction, biography, subtitle, and Matthew 10:30 detail.">
             <Field label="Outline heading" value={content.story.heading} onChange={(value) => update('story.heading', value)} maxLength={120} />
             <Field label="About subtitle" value={content.story.subtitle} onChange={(value) => update('story.subtitle', value)} maxLength={160} />
             <Field label="About introduction" value={content.hero.intro} onChange={(value) => update('hero.intro', value)} textarea rows={3} maxLength={360} />
             <Field label="Biography" value={content.story.body} onChange={(value) => update('story.body', value)} textarea rows={12} maxLength={1400} />
-            <Field label="Location line" value={content.facts.location} onChange={(value) => update('facts.location', value)} maxLength={120} />
-            <Field label="Short location label" value={content.facts.mobile} onChange={(value) => update('facts.mobile', value)} maxLength={60} />
             <div className="field-grid two">
               <Field label="Verse quote" value={content.brand.verseQuote} onChange={(value) => update('brand.verseQuote', value)} maxLength={180} />
               <Field label="Verse reference" value={content.brand.verseReference} onChange={(value) => update('brand.verseReference', value)} maxLength={80} />
@@ -188,8 +205,8 @@ export function Editor({ defaults }) {
         </main>
       </div>
       <div className="publish-bar">
-        <p role="status">{status || (dirty ? 'Unsaved changes' : `Published revision ${revision}`)}</p>
-        <button type="button" className="publish-button" onClick={save} disabled={!dirty}>Save and publish preview</button>
+        <p role="status">{status || (dirty ? 'Unsaved changes' : 'Saved — preview is up to date')}</p>
+        <button type="button" className="publish-button" onClick={save} disabled={!dirty}>Save changes to preview</button>
       </div>
     </div>
   )
@@ -220,6 +237,40 @@ function PasswordChange({ user, onSuccess }) {
   return <EditorFrame><form className="auth-card" onSubmit={submit}><p className="editor-kicker">First sign-in</p><h1>Set your password</h1><p>{user.email}</p><Field name="currentPassword" label="Temporary password" type="password" required /><Field name="newPassword" label="New password (12–128 characters)" type="password" minLength={12} maxLength={128} required /><button className="publish-button" type="submit">Set password</button><p role="status">{status}</p></form></EditorFrame>
 }
 
+function LogoUploader({ logo, update, setStatus }) {
+  const [file, setFile] = useState(null)
+  const upload = async (event) => {
+    event.preventDefault()
+    const uploader = event.currentTarget
+    if (!file) return setStatus('Choose the authentic JP logo file first.')
+    setStatus('Uploading logo…')
+    const form = new FormData()
+    form.append('file', file)
+    form.append('alt', 'JP Cuts logo')
+    form.append('purpose', 'logo')
+    try {
+      const payload = await api('/api/admin/media', { method: 'POST', body: form })
+      update('brand.logo', { ...payload.asset, alt: 'JP Cuts logo' })
+      setStatus('Logo uploaded. Save changes to update the preview.')
+      setFile(null)
+      uploader.reset()
+    } catch (error) { setStatus(error.message) }
+  }
+
+  return <div className="logo-editor">
+    <div className="logo-preview">
+      {logo?.url ? <img src={logo.url} alt="Current JP Cuts logo" /> : <strong>JP CUTS</strong>}
+      <p>{logo?.url ? 'Authentic logo ready in this draft.' : 'No authentic logo uploaded. The public site is using the JP CUTS text wordmark.'}</p>
+    </div>
+    <form className="logo-uploader" onSubmit={upload}>
+      <label className="field"><span>JP logo — upload authentic file</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+      <button type="submit">{logo?.url ? 'Replace logo' : 'Upload logo'}</button>
+      {logo?.url && <button type="button" className="secondary-button" onClick={() => { update('brand.logo', { type: 'image', url: '', alt: 'JP Cuts logo' }); setStatus('Logo removed from this draft. Save changes to return to the text wordmark.') }}>Remove logo</button>}
+      <p>PNG, JPEG, WebP, or AVIF; 6 MB max. SVG files are not accepted.</p>
+    </form>
+  </div>
+}
+
 function MediaUploader({ content, update, setStatus }) {
   const [target, setTarget] = useState('hero')
   const [alt, setAlt] = useState('')
@@ -234,6 +285,7 @@ function MediaUploader({ content, update, setStatus }) {
 
   const upload = async (event) => {
     event.preventDefault()
+    const uploader = event.currentTarget
     if (!file) return setStatus('Choose a file first.')
     if (file.type.startsWith('image/') && !alt.trim()) return setStatus('Add alt text before uploading an image.')
     setStatus('Uploading media…')
@@ -248,10 +300,10 @@ function MediaUploader({ content, update, setStatus }) {
       else if (target === 'before') update('media.beforeAfter.before', asset)
       else if (target === 'after') update('media.beforeAfter.after', asset)
       else update(`media.gallery.${Number(target.split('-')[1])}`, asset)
-      setStatus('Media uploaded. Save and publish when the preview looks right.')
+      setStatus('Media uploaded. Save changes when the preview looks right.')
       setFile(null)
       setAlt('')
-      event.currentTarget.reset()
+      uploader.reset()
     } catch (error) { setStatus(error.message) }
   }
 
@@ -282,7 +334,7 @@ function MediaFocusManager({ content, update }) {
 }
 
 function MediaPreview({ label, asset, selected, onEdit }) {
-  return <figure className={`media-preview ${selected ? 'is-selected' : ''}`}>{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" style={imageFocusStyle(asset)} />}<figcaption><b>{label}</b><span>{asset?.alt || 'No alt text'}</span><button type="button" aria-pressed={selected} onClick={onEdit}>{selected ? 'Editing focus' : 'Edit focus'}</button></figcaption></figure>
+  return <figure className={`media-preview ${selected ? 'is-selected' : ''}`}>{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" style={imageFocusStyle(asset)} />}<figcaption><b>{label}</b><span>{asset?.alt || 'No alt text'}</span><button type="button" aria-pressed={selected} onClick={onEdit}>{selected ? 'Adjusting visible area' : 'Adjust visible area'}</button></figcaption></figure>
 }
 
 function FocusPointEditor({ label, path, asset, update }) {
@@ -300,6 +352,7 @@ function FocusPointEditor({ label, path, asset, update }) {
     setPoint(((event.clientX - bounds.left) / bounds.width) * 100, ((event.clientY - bounds.top) / bounds.height) * 100)
   }
   const startPointer = (event) => {
+    if (event.pointerType === 'touch') return
     activePointer.current = event.pointerId
     event.currentTarget.setPointerCapture?.(event.pointerId)
     setFromPointer(event)
@@ -323,26 +376,27 @@ function FocusPointEditor({ label, path, asset, update }) {
   }
 
   return <section className="focus-editor" aria-labelledby={`${descriptionId}-title`}>
-    <header><div><p className="editor-kicker">Image focus</p><h3 id={`${descriptionId}-title`}>{label}</h3></div><p>{focus.x}% across · {focus.y}% down</p></header>
-    <p id={descriptionId} className="editor-help">Tap or drag the target. Arrow keys move one point; hold Shift for five.</p>
+    <header><div><p className="editor-kicker">Photo crop</p><h3 id={`${descriptionId}-title`}>{label}</h3></div><p>{focus.x}% across · {focus.y}% down</p></header>
+    <p id={descriptionId} className="editor-help">Choose what stays visible when this photo is cropped. Tap the person or detail to keep in frame. Arrow keys move one point; hold Shift for five.</p>
     <button
       ref={frameRef}
       type="button"
       className="focus-canvas"
-      aria-label={`${label} focus point, ${focus.x}% across and ${focus.y}% down`}
+      aria-label={`${label} visible area, ${focus.x}% across and ${focus.y}% down`}
       aria-describedby={descriptionId}
       onPointerDown={startPointer}
       onPointerMove={movePointer}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
+      onClick={setFromPointer}
       onKeyDown={moveFromKeyboard}
     >
       <img src={asset?.url} alt="" style={imageFocusStyle(asset)} />
       <span className="focus-target" style={{ left: `${focus.x}%`, top: `${focus.y}%` }} aria-hidden="true" />
     </button>
     <div className="focus-ranges">
-      <label><span>Horizontal <output>{focus.x}%</output></span><input type="range" min="0" max="100" value={focus.x} onChange={(event) => setPoint(Number(event.target.value), focus.y)} /></label>
-      <label><span>Vertical <output>{focus.y}%</output></span><input type="range" min="0" max="100" value={focus.y} onChange={(event) => setPoint(focus.x, Number(event.target.value))} /></label>
+      <label><span>Move focus left ↔ right <output>{focus.x}%</output></span><input type="range" min="0" max="100" value={focus.x} onChange={(event) => setPoint(Number(event.target.value), focus.y)} /></label>
+      <label><span>Move focus up ↕ down <output>{focus.y}%</output></span><input type="range" min="0" max="100" value={focus.y} onChange={(event) => setPoint(focus.x, Number(event.target.value))} /></label>
       <button type="button" onClick={() => setPoint(50, 50)}>Reset to center</button>
     </div>
     <div className="focus-crops" aria-label="Crop previews">
@@ -374,7 +428,7 @@ function OwnerAccess({ setStatus }) {
   return <EditorSection title="Owner access" description="JP receives the same access as paul. New owners must change their temporary password before they can view or publish the preview."><form className="owner-access" onSubmit={createOwner}><Field name="email" label="JP's email" type="email" autoComplete="off" required /><Field name="tempPassword" label="Temporary password (12–128 characters)" type="password" minLength={12} maxLength={128} autoComplete="new-password" required /><button type="submit">Create owner account</button></form></EditorSection>
 }
 
-function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-mark">JP</span><b>JP CUTS</b></div>{children}</main> }
+function EditorFrame({ children }) { return <main className="editor-auth"><div className="editor-auth-brand"><span className="editor-wordmark">JP CUTS</span></div>{children}</main> }
 function EditorSection({ title, description, children }) { return <section className="editor-section"><header><h2>{title}</h2><p>{description}</p></header><div className="editor-fields">{children}</div></section> }
 function LockedField({ label, value }) { return <label className="field is-locked"><span>{label}</span><input value={value} readOnly aria-readonly="true" /></label> }
 

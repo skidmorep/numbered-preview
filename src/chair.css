@@ -67,6 +67,15 @@
   letter-spacing: .015em;
 }
 
+.chair-brand img {
+  width: auto;
+  max-width: 132px;
+  height: 42px;
+  display: block;
+  object-fit: contain;
+  object-position: left center;
+}
+
 .chair-brand span {
   color: #a5a764;
   font-size: .64rem;
@@ -146,7 +155,7 @@
 
 .chair-hero-copy {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   padding: 130px 18px 86px;
 }
 
@@ -161,14 +170,40 @@
 }
 
 .chair-hero h1 {
-  max-width: 9ch;
+  width: fit-content;
+  max-width: 100%;
   color: transparent;
-  font-size: clamp(4rem, 20vw, 6.6rem);
+  font-size: clamp(2.85rem, 15.5vw, 6.6rem);
   line-height: .88;
   -webkit-text-stroke: 1.6px #fff;
 }
 
-.chair-hero h1 span { display: block; }
+.chair-hero h1 span { display: block; white-space: nowrap; }
+
+.chair-hero-offer {
+  width: min(100%, 430px);
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  padding: 10px 0 2px;
+  text-transform: uppercase;
+}
+
+.chair-hero-offer strong {
+  font-family: var(--display);
+  font-size: clamp(5.2rem, 27vw, 8rem);
+  font-weight: 400;
+  letter-spacing: -.035em;
+  line-height: .7;
+}
+
+.chair-hero-offer span {
+  padding-bottom: 3px;
+  font-size: .72rem;
+  font-weight: 950;
+  letter-spacing: .11em;
+  line-height: 1.25;
+}
 
 .chair-price {
   width: max-content;
@@ -186,11 +221,10 @@
 .chair-price span { padding: 0 5px; color: var(--chair-olive-dark); }
 
 .chair-hero-book {
-  width: min(100%, 390px);
-  min-height: 78px;
-  display: grid;
-  align-content: center;
-  gap: 4px;
+  width: min(100%, 290px);
+  min-height: 58px;
+  display: flex;
+  align-items: center;
   border: 2px solid #a7aa67;
   padding: 15px 20px;
   color: var(--chair-ink);
@@ -206,11 +240,6 @@
   letter-spacing: .12em;
 }
 
-.chair-hero-book > strong {
-  font-size: .7rem;
-  letter-spacing: .07em;
-}
-
 .chair-hero-addon {
   margin: -8px 0 0;
   color: #fff;
@@ -220,6 +249,59 @@
   text-transform: uppercase;
   text-shadow: 0 2px 10px rgba(0, 0, 0, .72);
 }
+
+.chair-availability {
+  display: grid;
+  gap: 24px;
+  padding: 38px 18px 42px;
+  color: var(--chair-ink);
+  background: var(--chair-sand-light);
+  border-bottom: 1px solid var(--chair-line);
+}
+
+.chair-availability header { display: grid; gap: 8px; }
+.chair-availability .chair-kicker { color: var(--chair-olive-dark); }
+.chair-availability h2 {
+  margin: 0;
+  font-size: clamp(2.8rem, 13vw, 5.3rem);
+}
+
+.chair-location-grid { display: grid; gap: 12px; }
+.chair-location-grid article {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  padding: 20px;
+  border: 1px solid var(--chair-line);
+  background: #f7eedc;
+}
+.chair-location-grid p,
+.chair-location-grid h3,
+.chair-location-grid address,
+.chair-location-grid strong,
+.chair-location-grid span { margin: 0; }
+.chair-location-grid p {
+  color: var(--chair-olive-dark);
+  font-size: .64rem;
+  font-weight: 950;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.chair-location-grid h3 {
+  font-family: var(--display);
+  font-size: clamp(2.2rem, 10vw, 3.8rem);
+  font-weight: 400;
+  line-height: .9;
+  text-transform: uppercase;
+}
+.chair-location-grid address {
+  font-size: .88rem;
+  font-style: normal;
+  font-weight: 850;
+}
+.chair-location-grid strong { max-width: 54ch; font-size: .92rem; line-height: 1.45; }
+.chair-location-grid span { color: #5f5b50; font-size: .76rem; line-height: 1.45; }
 
 .chair-camo {
   min-height: 44px;
@@ -656,9 +738,11 @@
   inset: auto 0 0;
   z-index: 105;
   min-height: 68px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  padding-inline: 18px;
   padding-bottom: env(safe-area-inset-bottom);
   color: var(--chair-ink);
   background: #8a8d4f;
@@ -668,6 +752,8 @@
   letter-spacing: .14em;
   text-transform: uppercase;
 }
+
+.chair-mobile-book small { font-size: .62rem; letter-spacing: .06em; }
 
 .before-after {
   width: 100%;
@@ -765,7 +851,17 @@
   text-transform: uppercase;
 }
 
+@media (max-width: 719px) and (max-height: 650px) {
+  .chair-hero { min-height: 100svh; height: 100svh; }
+  .chair-hero-copy { gap: 8px; padding: 100px 18px 82px; }
+  .chair-hero-offer { padding-top: 4px; }
+  .chair-hero-book { min-height: 52px; padding-block: 11px; }
+  .chair-hero-addon { margin-top: -2px; }
+}
+
 @media (min-width: 720px) {
+  .chair-availability { padding: 54px 7vw 58px; }
+  .chair-location-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chair-section { padding: 96px 7vw; }
   .chair-service-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .chair-about-images { min-height: 620px; }
@@ -807,8 +903,9 @@
   .chair-mobile-book { display: none; }
   .chair-hero { min-height: 760px; height: min(900px, 100svh); }
   .chair-hero-copy { gap: 22px; padding: 180px 3vw 126px; }
-  .chair-hero-book { min-height: 86px; }
-  .chair-hero h1 { font-size: clamp(6rem, 8.5vw, 9rem); max-width: 9ch; -webkit-text-stroke-width: 2px; }
+  .chair-hero-book { min-height: 62px; }
+  .chair-hero h1 { font-size: clamp(6rem, 8.5vw, 9rem); max-width: 100%; -webkit-text-stroke-width: 2px; }
+  .chair-availability { grid-template-columns: minmax(220px, .45fr) minmax(0, 1.55fr); align-items: start; padding-inline: max(4vw, calc((100vw - 1400px) / 2)); }
   .chair-camo { min-height: 52px; border-width: 6px; }
   .chair-camo.is-compact { min-height: 26px; border-width: 3px; }
   .chair-section { gap: 48px; padding: 110px 6vw; }

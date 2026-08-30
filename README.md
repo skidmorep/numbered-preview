@@ -41,8 +41,8 @@ Remote visual and editor checks require an owner session or the existing owner c
 
 ## Content and media rules
 
-- The editor supports the hero headline and booking label, notes for the two approved services, approved replacement photos, per-image focus points, the before/after heading, and the event-form button label.
-- The approved Instagram Reel is fixed and embedded on the homepage.
+- The editor supports the hero headline and booking label, structured Faded University/Lipscomb details, an authentic-logo upload slot, notes for the two approved services, approved replacement photos, per-image focus points, the before/after heading, and the event-form button label.
+- The selected Instagram Reel stays available in the editor but remains unpublished by default. The public site never embeds Instagram.
 - The public page omits JP's phone number and email address. Event inquiries use the accordion form and the Worker keeps the delivery address server-side.
 - Images must be JPEG, PNG, WebP, or AVIF and no larger than 6 MB.
 - Videos must be MP4 or WebM and no larger than 15 MB.
@@ -51,7 +51,7 @@ Remote visual and editor checks require an owner session or the existing owner c
 - Empty optional sections stay hidden.
 - Published content writes a new revision; simultaneous stale saves are rejected.
 
-Content version 4 is a one-time correction release. When version 3 content loads, it preserves the selected hero headline and replaces the old brand name, location, booking destination, services, bio, event copy, social links, featured Reel, and homepage media with the approved JP Cuts values. This intentionally removes stale owner edits that conflict with the corrected source material.
+Content version 6 preserves the owner’s story, headline, media URLs, ordering, alt text, focus points, contact details, and permitted social fields while adding structured Faded University/Lipscomb availability and the authentic-logo slot. Older correction-era content still receives the protected JP Cuts identity, Calendly destination, approved services, and unpublished Reel state.
 
 ## Media source
 
@@ -62,9 +62,10 @@ JP approved the selected client, wedding, and team photographs in the shared Dro
 - Owners sign in with their email address and password.
 - The root and admin login shells post explicitly to `/login/`, then return only to the allowlisted public or admin destination. Signing out clears that session without invalidating another active owner context.
 - The login screen links to `/forgot-password/`, where the user requests a reset link by email. Normal sign-in never uses email OTP.
-- The public response does not reveal whether an account exists. Requests are throttled by hashed email and IP keys.
+- The public response does not reveal whether an account exists. Login, reset, and contact requests reserve hashed identifier/IP attempts atomically in D1 before password verification or email work. Login also has a global per-IP ceiling across identifiers.
 - Reset links expire after 30 minutes and work once. The raw token stays in the URL fragment, is moved into the reset form in the browser, and is never sent in a GET request or stored in D1.
 - D1 stores only the token hash. A successful reset atomically consumes the token, revokes existing sessions, and invalidates older unused tokens.
+- Content state and its revision receipt commit in one D1 batch; a stale or racing save receives `409` without overwriting owner edits.
 - The user must complete a fresh login after resetting the password.
 - `/claim/` remains an operator-assisted fallback for an existing private recovery code, but it is not linked from the login screen.
 - The owner can add another owner from the editor after confirming the person's email address.

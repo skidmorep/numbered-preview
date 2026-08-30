@@ -12,7 +12,10 @@ test('bundled content passes the Worker validation contract', () => {
   assert.equal(defaultContent.contact.email, undefined)
   assert.equal(defaultContent.events.actionUrl, undefined)
   assert.equal(defaultContent.brand.publicName, 'JP CUTS')
-  assert.equal(defaultContent.version, 5)
+  assert.equal(defaultContent.version, 6)
+  assert.equal(defaultContent.services[0].duration, '35 minutes')
+  assert.equal(defaultContent.locations.fadedUniversity.address, '113 Front Street, Smyrna, TN 37167')
+  assert.equal(defaultContent.brand.logo.url, '')
   assert.equal(defaultContent.hero.eyebrow, 'MIDDLE TENNESSEE')
   assert.equal(defaultContent.story.subtitle, 'Clean cuts. Easy conversation. No pretense.')
   assert.equal(defaultContent.events.outlineHeading, 'GROUP CUTS')
@@ -51,7 +54,7 @@ test('legacy content migration preserves the chosen headline while enforcing app
   legacy.events.actionUrl = 'mailto:public@example.com'
 
   const migrated = mergeContent(legacy)
-  assert.equal(migrated.version, 5)
+  assert.equal(migrated.version, 6)
   assert.equal(migrated.brand.publicName, 'JP CUTS')
   assert.equal(migrated.hero.eyebrow, 'MIDDLE TENNESSEE')
   assert.match(migrated.hero.intro, /Middle Tennessee/)
@@ -97,12 +100,12 @@ test('version 4 owner content upgrades merge-safely while applying the requested
   stored.media.hero.focus = { x: 45, y: 13 }
 
   const upgraded = mergeContent(stored)
-  assert.equal(upgraded.version, 5)
+  assert.equal(upgraded.version, 6)
   assert.equal(upgraded.hero.eyebrow, 'MIDDLE TENNESSEE')
   assert.equal(upgraded.hero.headline, 'Owner headline')
   assert.equal(upgraded.hero.intro, 'Owner introduction')
   assert.equal(upgraded.booking.label, 'Owner booking label')
-  assert.equal(upgraded.services[0].duration, 'About 35 minutes')
+  assert.equal(upgraded.services[0].duration, '35 minutes')
   assert.equal(upgraded.services[0].note, 'Owner haircut note')
   assert.equal(upgraded.story.heading, 'Owner about heading')
   assert.equal(upgraded.story.subtitle, 'Clean cuts. Easy conversation. No pretense.')
@@ -132,6 +135,24 @@ test('current owner media gains safe focus defaults without replacing URLs, alt 
   assert.deepEqual(merged.media.gallery.map((asset) => asset.url), stored.media.gallery.map((asset) => asset.url))
   assert.deepEqual(merged.media.gallery[0].focus, defaultContent.media.gallery[0].focus)
   assert.deepEqual(merged.media.gallery[2].focus, { x: 19, y: 81 })
+})
+
+test('stored logo migration preserves approved images and drops invalid or video paths', () => {
+  const approved = structuredClone(defaultContent)
+  approved.brand.logo.url = '/uploads/11111111-1111-1111-1111-111111111111.webp'
+  approved.brand.logo.alt = 'Owner-authored JP logo alt text'
+  assert.equal(mergeContent(approved).brand.logo.url, approved.brand.logo.url)
+  assert.equal(mergeContent(approved).brand.logo.alt, approved.brand.logo.alt)
+
+  for (const unsafe of [
+    'https://images.example/logo.webp',
+    '/uploads/11111111-1111-1111-1111-111111111111.mp4',
+    '/media/defaults/../private.webp',
+  ]) {
+    const stored = structuredClone(defaultContent)
+    stored.brand.logo.url = unsafe
+    assert.equal(mergeContent(stored).brand.logo.url, '')
+  }
 })
 
 test('content validation rejects unsafe URLs, markup, excess galleries, and missing alt text', async (t) => {
@@ -180,6 +201,27 @@ test('content validation rejects unsafe URLs, markup, excess galleries, and miss
     const content = structuredClone(defaultContent)
     content.contact.tiktokUrl = 'javascript:alert(1)'
     assertResponseError(() => validateContent(content), 400)
+  })
+
+  await t.test('social and local media URLs reject spoofed hosts, credentials, traversal, and SVG', () => {
+    for (const facebookUrl of [
+      'https://facebook.com.evil.example/jpcuuts',
+      'https://owner:secret@www.facebook.com/jpcuuts',
+    ]) {
+      const content = structuredClone(defaultContent)
+      content.contact.facebookUrl = facebookUrl
+      assertResponseError(() => validateContent(content), 400)
+    }
+    for (const mediaUrl of [
+      '/media/defaults/../private.webp',
+      '/uploads/11111111-1111-1111-1111-111111111111.svg',
+      '/uploads/11111111-1111-1111-1111-111111111111.mp4',
+      'https://images.example/jp.webp',
+    ]) {
+      const content = structuredClone(defaultContent)
+      content.brand.logo.url = mediaUrl
+      assertResponseError(() => validateContent(content), 400)
+    }
   })
 
   await t.test('booking, primary Instagram, and Reel controls reject unapproved destinations', () => {
@@ -237,6 +279,8 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     const response = await handleRequest(new Request(`https://numbered.test${path}`), bindings.env)
     const html = await response.text()
     assert.equal(response.status, 200)
+    assert.equal(response.headers.get('cache-control'), 'private, no-store')
+    assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains')
     assert.match(response.headers.get('content-type'), /^text\/html/)
     assert.match(html, /Private preview/)
     assert.match(html, /Sign in with your email address and password/)
@@ -250,7 +294,7 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     const bindings = untouchedBindings()
     const response = await handleRequest(new Request(`https://numbered.test${path}`), bindings.env)
     assert.equal(response.status, 401)
-    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(response.headers.get('cache-control'), 'private, no-store')
     assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
   }
 })
@@ -327,7 +371,7 @@ test('reset links keep tokens out of requests and response HTML', async () => {
   assert.equal(script.status, 200)
   assert.match(javascript, /location\.hash/)
   assert.match(javascript, /history\.replaceState/)
-  assert.equal(script.headers.get('cache-control'), 'no-store')
+  assert.equal(script.headers.get('cache-control'), 'private, no-store')
 
   const secret = 'never-echo-this-reset-token-12345678901234567890'
   const invalid = await handleRequest(new Request('https://numbered.test/reset-password/', {
@@ -439,6 +483,20 @@ test('event contact form rejects cross-origin, rushed, hostile, and repeated sub
   assert.equal(hostile.status, 400)
   assert.equal(hostileBindings.state.sent.length, 0)
 
+  for (const poisoned of [
+    { name: 'Taylor\r\nBcc: attacker@example.com' },
+    { organization: 'Team\nBcc: attacker@example.com' },
+  ]) {
+    const headerBindings = resetRequestEnv()
+    const response = await handleRequest(new Request('https://numbered.test/api/contact', {
+      method: 'POST',
+      headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+      body: JSON.stringify({ ...payload, ...poisoned }),
+    }), headerBindings.env)
+    assert.equal(response.status, 400)
+    assert.equal(headerBindings.state.sent.length, 0)
+  }
+
   const honeypotBindings = resetRequestEnv()
   const honeypot = await handleRequest(new Request('https://numbered.test/api/contact', {
     method: 'POST',
@@ -458,6 +516,52 @@ test('event contact form rejects cross-origin, rushed, hostile, and repeated sub
   assert.equal(repeatedBindings.state.sent.length, 1)
 })
 
+test('atomic admission bounds concurrent login, reset, and contact fan-out', async () => {
+  const sameLoginEnv = resetRequestEnv({ userExists: false })
+  const sameLogin = await Promise.all(Array.from({ length: 20 }, () => handleRequest(new Request('https://numbered.test/api/login', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.70' },
+    body: JSON.stringify({ email: 'missing@example.com', password: 'wrong-password-123' }),
+  }), sameLoginEnv.env)))
+  assert.equal(sameLogin.filter((response) => response.status === 401).length, 5)
+  assert.equal(sameLogin.filter((response) => response.status === 429).length, 15)
+
+  const rotatingLoginEnv = resetRequestEnv({ userExists: false })
+  const rotatingLogin = await Promise.all(Array.from({ length: 30 }, (_, index) => handleRequest(new Request('https://numbered.test/api/login', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.71' },
+    body: JSON.stringify({ email: `missing-${index}@example.com`, password: 'wrong-password-123' }),
+  }), rotatingLoginEnv.env)))
+  assert.equal(rotatingLogin.filter((response) => response.status === 401).length, 20)
+  assert.equal(rotatingLogin.filter((response) => response.status === 429).length, 10)
+
+  const resetBindings = resetRequestEnv()
+  const pending = []
+  const resetResponses = await Promise.all(Array.from({ length: 50 }, () => handleRequest(new Request('https://numbered.test/forgot-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': '203.0.113.72' },
+    body: new URLSearchParams({ email: 'skidmore@parabolos.com' }),
+  }), resetBindings.env, { waitUntil(promise) { pending.push(promise) } })))
+  await Promise.all(pending)
+  assert.equal(resetResponses.every((response) => response.status === 200), true)
+  assert.equal(new Set(await Promise.all(resetResponses.map((response) => response.text()))).size, 1)
+  assert.equal(resetBindings.state.sent.length, 1)
+
+  const contactBindings = resetRequestEnv()
+  const contactPayload = {
+    name: 'Concurrent proof', email: 'concurrent@example.com', organization: '', eventDate: '',
+    details: 'One canonical submission must produce at most one delivery.', website: '', startedAt: Date.now() - 5_000,
+  }
+  const contactResponses = await Promise.all(Array.from({ length: 50 }, () => handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': '203.0.113.73', cookie: sessionCookie },
+    body: JSON.stringify(contactPayload),
+  }), contactBindings.env)))
+  assert.equal(contactResponses.filter((response) => response.status === 200).length, 1)
+  assert.equal(contactResponses.filter((response) => response.status === 429).length, 49)
+  assert.equal(contactBindings.state.sent.length, 1)
+})
+
 test('authenticated content endpoint safely returns bundled-fallback state and security headers', async () => {
   const env = authenticatedEnv()
   const response = await handleRequest(new Request('https://numbered.test/api/content', {
@@ -470,6 +574,8 @@ test('authenticated content endpoint safely returns bundled-fallback state and s
   assert.equal(body.revision, 0)
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive')
   assert.match(response.headers.get('content-security-policy'), /frame-src 'none'/)
+  assert.equal(response.headers.get('cache-control'), 'private, no-store')
+  assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains')
   assert.equal(response.headers.get('access-control-allow-origin'), null)
 })
 
@@ -489,11 +595,68 @@ test('authenticated content endpoint removes forbidden fields from stored legacy
   const serialized = JSON.stringify(body)
 
   assert.equal(response.status, 200)
-  assert.equal(body.content.version, 5)
+  assert.equal(body.content.version, 6)
   assert.equal(body.content.booking.url, 'https://calendly.com/jpcuts/30mins')
   assert.equal(body.content.featured.url, 'https://www.instagram.com/reel/DX1nfUogdFn/')
   assert.equal(body.content.featured.enabled, false)
   assert.doesNotMatch(serialized, /jp@jpcuuts\.com|mailto:|booksy|nashville|reel\/wrong/i)
+})
+
+test('content state and revision history commit together under racing saves', async () => {
+  const baseline = structuredClone(defaultContent)
+  const racing = contentStateEnv({ content: baseline, revision: 9 })
+  const first = structuredClone(defaultContent)
+  const second = structuredClone(defaultContent)
+  first.hero.headline = 'First racing save.'
+  second.hero.headline = 'Second racing save.'
+  const save = (content, revision = 9) => handleRequest(new Request('https://numbered.test/api/admin/content', {
+    method: 'PUT',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ content, revision }),
+  }), racing.env)
+  const responses = await Promise.all([save(first), save(second)])
+  assert.deepEqual(responses.map((response) => response.status).sort(), [200, 409])
+  assert.equal(racing.state.revision, 10)
+  assert.equal(racing.state.history.length, 1)
+  assert.equal(racing.state.history[0].revision, 10)
+  const committed = JSON.parse(racing.state.contentJson)
+  assert.deepEqual(committed.media.gallery.map((asset) => asset.url), baseline.media.gallery.map((asset) => asset.url))
+  assert.deepEqual(committed.media.gallery.map((asset) => asset.alt), baseline.media.gallery.map((asset) => asset.alt))
+  assert.deepEqual(committed.media.gallery.map((asset) => asset.focus), baseline.media.gallery.map((asset) => asset.focus))
+
+  const failed = contentStateEnv({ content: baseline, revision: 9, failHistory: true })
+  const failedResponse = await handleRequest(new Request('https://numbered.test/api/admin/content', {
+    method: 'PUT',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ content: first, revision: 9 }),
+  }), failed.env)
+  assert.equal(failedResponse.status, 500)
+  assert.equal(failed.state.revision, 9)
+  assert.equal(failed.state.contentJson, JSON.stringify(baseline))
+  assert.equal(failed.state.history.length, 0)
+
+  const initial = contentStateEnv({ content: null, revision: 0 })
+  const initialSave = (content) => handleRequest(new Request('https://numbered.test/api/admin/content', {
+    method: 'PUT',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ content, revision: 0 }),
+  }), initial.env)
+  const initialResponses = await Promise.all([initialSave(first), initialSave(second)])
+  assert.deepEqual(initialResponses.map((response) => response.status).sort(), [200, 409])
+  assert.equal(initial.state.revision, 1)
+  assert.equal(initial.state.history.length, 1)
+
+  for (const invalidRevision of ['9', 9.5, -1, true, null]) {
+    const invalid = contentStateEnv({ content: baseline, revision: 9 })
+    const response = await handleRequest(new Request('https://numbered.test/api/admin/content', {
+      method: 'PUT',
+      headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+      body: JSON.stringify({ content: first, revision: invalidRevision }),
+    }), invalid.env)
+    assert.equal(response.status, 400, `revision ${JSON.stringify(invalidRevision)}`)
+    assert.equal(invalid.state.revision, 9)
+    assert.equal(invalid.state.history.length, 0)
+  }
 })
 
 test('admin routes reject missing sessions and cross-origin mutations before parsing bodies', async () => {
@@ -535,6 +698,42 @@ test('admin routes reject missing sessions and cross-origin mutations before par
   assert.equal(upload.status, 401)
 })
 
+test('authorization matrix enforces revoked, forced-change, editor, and owner boundaries', async () => {
+  const noSession = authenticatedEnv(null, { session: false })
+  for (const [path, method] of [
+    ['/api/session', 'GET'], ['/api/admin/content', 'GET'], ['/api/admin/content', 'PUT'],
+    ['/api/admin/media', 'POST'], ['/api/admin/users', 'POST'], ['/uploads/11111111-1111-1111-1111-111111111111.jpg', 'GET'],
+  ]) {
+    const response = await handleRequest(new Request(`https://numbered.test${path}`, {
+      method,
+      headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+      body: ['GET', 'HEAD'].includes(method) ? undefined : '{}',
+    }), noSession)
+    assert.equal(response.status, 401, `${method} ${path}`)
+  }
+
+  const forced = authenticatedEnv(null, { forced: true })
+  assert.equal((await handleRequest(new Request('https://numbered.test/api/session', { headers: { cookie: sessionCookie } }), forced)).status, 200)
+  assert.equal((await handleRequest(new Request('https://numbered.test/api/admin/content', { headers: { cookie: sessionCookie } }), forced)).status, 403)
+  assert.equal((await handleRequest(new Request('https://numbered.test/api/admin/users', {
+    method: 'POST', headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie }, body: '{}',
+  }), forced)).status, 403)
+
+  const editor = authenticatedEnv(null, { role: 'editor' })
+  assert.equal((await handleRequest(new Request('https://numbered.test/api/admin/content', { headers: { cookie: sessionCookie } }), editor)).status, 200)
+  assert.equal((await handleRequest(new Request('https://numbered.test/api/admin/users', {
+    method: 'POST', headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ email: 'new@example.com', tempPassword: 'temporary-password-123', role: 'editor' }),
+  }), editor)).status, 403)
+
+  const owner = authenticatedEnv()
+  const created = await handleRequest(new Request('https://numbered.test/api/admin/users', {
+    method: 'POST', headers: { origin: 'https://numbered.test', 'content-type': 'application/json', cookie: sessionCookie },
+    body: JSON.stringify({ email: 'new@example.com', tempPassword: 'temporary-password-123', role: 'editor' }),
+  }), owner)
+  assert.equal(created.status, 201)
+})
+
 test('accepted image uploads receive a centered focus point', async () => {
   const form = new FormData()
   form.append('file', new File([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])], 'approved.jpg', { type: 'image/jpeg' }))
@@ -548,6 +747,45 @@ test('accepted image uploads receive a centered focus point', async () => {
 
   assert.equal(response.status, 201)
   assert.deepEqual((await response.json()).asset.focus, { x: 50, y: 50 })
+})
+
+test('authentic logo uploads accept safe raster images and reject video or disguised markup', async () => {
+  const safeForm = new FormData()
+  safeForm.append('file', new File([Uint8Array.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])], 'jp-logo.png', { type: 'image/png' }))
+  safeForm.append('alt', 'JP Cuts logo')
+  safeForm.append('purpose', 'logo')
+  const safe = await handleRequest(new Request('https://numbered.test/api/admin/media', {
+    method: 'POST', headers: { origin: 'https://numbered.test', cookie: sessionCookie }, body: safeForm,
+  }), authenticatedEnv())
+  assert.equal(safe.status, 201)
+  assert.match((await safe.json()).asset.url, /^\/uploads\/[0-9a-f-]{36}\.png$/)
+
+  const videoForm = new FormData()
+  videoForm.append('file', new File([new TextEncoder().encode('\0\0\0\0ftypisom')], 'not-a-logo.mp4', { type: 'video/mp4' }))
+  videoForm.append('alt', 'JP Cuts logo')
+  videoForm.append('purpose', 'logo')
+  const video = await handleRequest(new Request('https://numbered.test/api/admin/media', {
+    method: 'POST', headers: { origin: 'https://numbered.test', cookie: sessionCookie }, body: videoForm,
+  }), authenticatedEnv())
+  assert.equal(video.status, 415)
+
+  const markupForm = new FormData()
+  markupForm.append('file', new File([new TextEncoder().encode('<svg onload="alert(1)"></svg>')], 'fake.jpg', { type: 'image/jpeg' }))
+  markupForm.append('alt', 'JP Cuts logo')
+  markupForm.append('purpose', 'logo')
+  const markup = await handleRequest(new Request('https://numbered.test/api/admin/media', {
+    method: 'POST', headers: { origin: 'https://numbered.test', cookie: sessionCookie }, body: markupForm,
+  }), authenticatedEnv())
+  assert.equal(markup.status, 415)
+
+  const unknownForm = new FormData()
+  unknownForm.append('file', new File([Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])], 'unknown.jpg', { type: 'image/jpeg' }))
+  unknownForm.append('alt', 'Unknown purpose')
+  unknownForm.append('purpose', 'avatar')
+  const unknown = await handleRequest(new Request('https://numbered.test/api/admin/media', {
+    method: 'POST', headers: { origin: 'https://numbered.test', cookie: sessionCookie }, body: unknownForm,
+  }), authenticatedEnv())
+  assert.equal(unknown.status, 400)
 })
 
 test('one-time emailed recovery chooses a password, revokes sessions, and requires a fresh login', async () => {
@@ -646,7 +884,48 @@ test('the same password supports logout, repeat login, and an isolated concurren
   assert.equal((await sessionRequest(isolatedCookie)).status, 200)
 })
 
-function authenticatedEnv(siteContent = null) {
+test('successful and case-rotated logins cannot reset or evade the global IP ceiling', async () => {
+  const env = inviteEnv()
+  const password = 'rate-limit-password-123'
+  const reset = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: 'one-time-private-setup-code-with-entropy-1234567890', password, confirmation: password }),
+  }), env)
+  assert.equal(reset.status, 303)
+
+  const ip = '203.0.113.81'
+  const login = (email, candidate) => handleRequest(new Request('https://numbered.test/api/login', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': ip },
+    body: JSON.stringify({ email, password: candidate }),
+  }), env)
+  const rotated = ['SKIDMORE@PARABOLOS.COM', 'Skidmore@Parabolos.com', 'skidmore@parabolos.com']
+  const firstSix = []
+  for (let index = 0; index < 6; index += 1) firstSix.push(await login(rotated[index % rotated.length], 'wrong-password-123'))
+  assert.equal(firstSix.filter((response) => response.status === 401).length, 5)
+  assert.equal(firstSix.at(-1).status, 429)
+
+  const globalEnv = inviteEnv()
+  const globalReset = await handleRequest(new Request('https://numbered.test/reset-password/', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: 'one-time-private-setup-code-with-entropy-1234567890', password, confirmation: password }),
+  }), globalEnv)
+  assert.equal(globalReset.status, 303)
+  const globalLogin = (email, candidate) => handleRequest(new Request('https://numbered.test/api/login', {
+    method: 'POST',
+    headers: { origin: 'https://numbered.test', 'content-type': 'application/json', 'cf-connecting-ip': ip },
+    body: JSON.stringify({ email, password: candidate }),
+  }), globalEnv)
+  for (let index = 0; index < 19; index += 1) {
+    assert.equal((await globalLogin(`missing-${index}@example.com`, 'wrong-password-123')).status, 401)
+  }
+  assert.equal((await globalLogin('skidmore@parabolos.com', password)).status, 200)
+  assert.equal((await globalLogin('another-missing@example.com', 'wrong-password-123')).status, 429)
+})
+
+function authenticatedEnv(siteContent = null, { role = 'owner', forced = false, disabled = false, session = true } = {}) {
   return {
     ASSETS: { fetch: async () => new Response('site') },
     MEDIA: { head: async () => null, get: async () => null, put: async () => {} },
@@ -656,12 +935,14 @@ function authenticatedEnv(siteContent = null) {
           bind() { return this },
           async first() {
             if (sql.includes('from admin_sessions')) {
+              if (!session) return null
               return {
                 token_hash: 'hash', id: 'owner-1', username: 'skidmore@parabolos.com',
-                email: 'skidmore@parabolos.com', password_hash: 'unused', role: 'owner',
-                force_password_change: 0, disabled: 0,
+                email: 'skidmore@parabolos.com', password_hash: 'unused', role,
+                force_password_change: forced ? 1 : 0, disabled: disabled ? 1 : 0,
               }
             }
+            if (sql.includes('from admin_users where lower')) return null
             if (sql.includes('from site_state')) return siteContent ? { content_json: JSON.stringify(siteContent), revision: 9 } : null
             throw new Error(`Unexpected query: ${sql}`)
           },
@@ -670,6 +951,81 @@ function authenticatedEnv(siteContent = null) {
       },
     },
   }
+}
+
+function contentStateEnv({ content, revision, failHistory = false }) {
+  const state = {
+    contentJson: content ? JSON.stringify(content) : null,
+    revision,
+    history: [],
+  }
+  const env = {
+    ASSETS: { fetch: async () => new Response('site') },
+    MEDIA: { head: async () => null, get: async () => null, put: async () => {} },
+    DB: {
+      async batch(statements) {
+        const staged = {
+          contentJson: state.contentJson,
+          revision: state.revision,
+          history: structuredClone(state.history),
+        }
+        const results = []
+        let priorChanges = 0
+        for (const statement of statements) {
+          const { sql, values } = statement
+          let changes = 0
+          if (sql.startsWith('insert into site_state')) {
+            if (staged.contentJson === null) {
+              staged.contentJson = values[0]
+              staged.revision = values[1]
+              changes = 1
+            }
+          } else if (sql.startsWith('update site_state')) {
+            if (staged.contentJson !== null && staged.revision === values[4]) {
+              staged.contentJson = values[0]
+              staged.revision = values[1]
+              changes = 1
+            }
+          } else if (sql.startsWith('insert into site_revisions')) {
+            if (priorChanges === 1) {
+              if (failHistory) throw new Error('Injected history failure')
+              staged.history.push({ revision: values[0], contentJson: values[1] })
+              changes = 1
+            }
+          } else {
+            throw new Error(`Unexpected batch query: ${sql}`)
+          }
+          results.push({ meta: { changes } })
+          priorChanges = changes
+        }
+        state.contentJson = staged.contentJson
+        state.revision = staged.revision
+        state.history = staged.history
+        return results
+      },
+      prepare(sql) {
+        const statement = {
+          sql,
+          values: [],
+          bind(...values) { this.values = values; return this },
+          async first() {
+            if (sql.includes('from admin_sessions')) {
+              return {
+                token_hash: 'hash', id: 'owner-1', username: 'skidmore@parabolos.com',
+                email: 'skidmore@parabolos.com', password_hash: 'unused', role: 'owner',
+                force_password_change: 0, disabled: 0,
+              }
+            }
+            if (sql.includes('from site_state')) return state.contentJson === null ? null : { content_json: state.contentJson, revision: state.revision }
+            throw new Error(`Unexpected query: ${sql}`)
+          },
+          async run() { throw new Error(`Unexpected direct run: ${sql}`) },
+        }
+        return statement
+      },
+    },
+  }
+  return { env, state }
 }
 
 function resetRequestEnv({ userExists = true } = {}) {
@@ -694,15 +1050,13 @@ function resetRequestEnv({ userExists = true } = {}) {
         return {
           bind(...nextValues) { values = nextValues; return this },
           async first() {
-            if (sql.includes('from password_reset_limits')) return state.limits.get(values[0]) || null
+            if (sql.startsWith('insert into password_reset_limits')) return reserveLimit(state.limits, values)
             if (sql.includes('from admin_sessions')) return { ...user, force_password_change: 0, token_hash: 'hash' }
             if (sql.includes('from admin_users where lower')) return userExists ? user : null
             throw new Error(`Unexpected query: ${sql}`)
           },
           async run() {
-            if (sql.startsWith('insert into password_reset_limits')) {
-              state.limits.set(values[0], { attempts: values[1], window_started: values[2], last_requested_at: values[3] })
-            }
+            if (sql.startsWith('delete from password_reset_limits')) state.limits.delete(values[0])
             if (sql.startsWith('insert into password_invites')) {
               state.invites.push({ id: values[0], userId: values[1], tokenHash: values[2], expiresAt: values[3] })
             }
@@ -716,7 +1070,7 @@ function resetRequestEnv({ userExists = true } = {}) {
 }
 
 function inviteEnv() {
-  const state = { inviteUsed: false, passwordHash: '', sessions: new Map() }
+  const state = { inviteUsed: false, passwordHash: '', sessions: new Map(), limits: new Map() }
   const user = {
     id: 'owner-1', username: 'skidmore@parabolos.com', email: 'skidmore@parabolos.com',
     password_hash: '', role: 'owner', force_password_change: 1, disabled: 0,
@@ -737,7 +1091,7 @@ function inviteEnv() {
             if (sql.includes('from password_invites')) {
               return state.inviteUsed ? null : { id: 'invite-1', user_id: user.id, matched_user_id: user.id, disabled: 0 }
             }
-            if (sql.includes('from login_attempts')) return null
+            if (sql.startsWith('insert into password_reset_limits')) return reserveLimit(state.limits, values)
             if (sql.includes('from admin_sessions')) {
               return state.sessions.has(values[0]) ? { ...user, password_hash: state.passwordHash, force_password_change: 0, token_hash: values[0] } : null
             }
@@ -761,12 +1115,27 @@ function inviteEnv() {
               } else state.sessions.clear()
             }
             if (sql.startsWith('insert into admin_sessions')) state.sessions.set(values[2], { userId: values[1], expiresAt: values[3] })
+            if (sql.startsWith('delete from password_reset_limits')) state.limits.delete(values[0])
             return { meta: { changes: 1 } }
           },
         }
       },
     },
   }
+}
+
+function reserveLimit(limits, values) {
+  const [key, timestamp, , resetBefore, , , maxAttempts, cooldownBefore] = values
+  const current = limits.get(key)
+  const expired = !current || current.window_started < resetBefore
+  if (!expired && (current.attempts >= maxAttempts || current.last_requested_at > cooldownBefore)) return null
+  const next = {
+    attempts: expired ? 1 : current.attempts + 1,
+    window_started: expired ? timestamp : current.window_started,
+    last_requested_at: timestamp,
+  }
+  limits.set(key, next)
+  return { attempts: next.attempts }
 }
 
 function untouchedBindings() {

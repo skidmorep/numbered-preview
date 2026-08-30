@@ -148,7 +148,7 @@
 /* Editor */
 .editor-auth { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 28px; padding: 24px; color: #171513; background: #eee8dd; }
 .editor-auth-brand { display: flex; align-items: center; gap: 12px; font-size: .78rem; letter-spacing: .07em; }
-.editor-mark { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 42px; border: 2px solid var(--red); color: var(--red); font-family: var(--display); font-size: .78rem; }
+.editor-wordmark { color: var(--red); font-family: var(--display); font-size: 1.35rem; letter-spacing: .04em; line-height: 1; }
 .auth-card { width: min(100%, 440px); display: grid; gap: 16px; padding: 28px; border: 1px solid #cec4b7; background: #fffaf2; box-shadow: 0 18px 60px rgba(35,26,18,.1); }
 .auth-card h1 { margin: 0; font-size: 2rem; }
 .auth-card p { margin: 0; color: #6d6257; }
@@ -182,6 +182,17 @@
 .field textarea { min-height: 100px; resize: vertical; line-height: 1.45; }
 .check-field { display: inline-flex; align-items: center; gap: 8px; color: #443c34; font-size: .78rem; font-weight: 800; }
 .check-field input { width: 18px; height: 18px; accent-color: var(--red); }
+.location-fields { min-width: 0; display: grid; gap: 14px; margin: 0; padding: 16px; border: 1px solid #d2c6b8; }
+.location-fields legend { padding: 0 6px; color: #241f1a; font-size: .8rem; font-weight: 900; }
+.logo-editor { display: grid; grid-template-columns: minmax(180px, .65fr) minmax(260px, 1.35fr); gap: 14px; }
+.logo-preview { min-width: 0; display: grid; place-items: center; align-content: center; gap: 12px; min-height: 150px; padding: 18px; border: 1px solid #d2c6b8; background: white; text-align: center; }
+.logo-preview img { max-width: 100%; max-height: 100px; object-fit: contain; }
+.logo-preview strong { color: var(--red); font-family: var(--display); font-size: 2.25rem; font-weight: 400; }
+.logo-preview p { margin: 0; color: #6d6257; font-size: .72rem; line-height: 1.45; }
+.logo-uploader { display: grid; align-content: start; gap: 10px; padding: 14px; background: #e9e0d4; }
+.logo-uploader button { min-height: 44px; border: 0; padding: 10px 18px; color: #fff; background: #171513; font-weight: 900; cursor: pointer; }
+.logo-uploader .secondary-button { border: 1px solid #8d8174; color: #241f1a; background: #fffaf2; }
+.logo-uploader > p { margin: 0; color: #70665d; font-size: .7rem; }
 .service-editor { display: grid; gap: 10px; }
 .service-edit-row { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(240px, 1.3fr); align-items: end; gap: 10px; padding: 12px; border: 1px solid #ddd3c7; background: #fff; }
 .service-edit-row > p { margin: 0; color: #6d6257; font-size: .86rem; line-height: 1.5; }
@@ -204,7 +215,7 @@
 .focus-editor > header h3, .focus-editor > header p { margin: 0; }
 .focus-editor > header h3 { margin-top: 4px; font-size: 1.25rem; }
 .focus-editor > header > p { color: #62584f; font-size: .78rem; font-weight: 800; }
-.focus-canvas { position: relative; width: 100%; min-height: 320px; aspect-ratio: 16 / 10; display: block; overflow: hidden; border: 2px solid #171513; padding: 0; background: #171513; cursor: crosshair; touch-action: none; }
+.focus-canvas { position: relative; width: 100%; min-height: 320px; aspect-ratio: 16 / 10; display: block; overflow: hidden; border: 2px solid #171513; padding: 0; background: #171513; cursor: crosshair; touch-action: pan-y; }
 .focus-canvas img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; }
 .focus-target { position: absolute; width: 46px; height: 46px; border: 3px solid white; border-radius: 50%; background: rgba(198,31,39,.72); box-shadow: 0 0 0 2px #171513, 0 4px 14px rgba(0,0,0,.28); transform: translate(-50%,-50%); pointer-events: none; }
 .focus-target::before, .focus-target::after { content: ''; position: absolute; inset: 50% auto auto 50%; background: white; transform: translate(-50%,-50%); }
@@ -327,6 +338,7 @@
   .editor-section { padding: 18px 14px; }
   .field-grid.two, .field-grid.three { grid-template-columns: 1fr; }
   .service-edit-row { grid-template-columns: 1fr; }
+  .logo-editor { grid-template-columns: 1fr; }
   .media-uploader { grid-template-columns: 1fr; }
   .media-uploader > p { grid-column: auto; }
   .media-preview-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }

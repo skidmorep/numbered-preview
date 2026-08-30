@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   FacebookLogo,
   InstagramLogo,
@@ -26,6 +26,7 @@ export function PublicSite({ content, contentStatus }) {
       <SiteHeader content={content} />
       <main>
         <Hero content={content} />
+        <Availability content={content} />
         <CamoAccent />
         <Work content={content} />
         <CamoAccent compact />
@@ -38,7 +39,8 @@ export function PublicSite({ content, contentStatus }) {
       </main>
       <SiteFooter content={content} />
       <a className="chair-mobile-book" href={content.booking.url} target="_blank" rel="noreferrer">
-        {content.booking.label}
+        <span>{content.booking.label}</span>
+        <small>{content.services[0].price} · 35 min</small>
       </a>
     </div>
   )
@@ -46,12 +48,26 @@ export function PublicSite({ content, contentStatus }) {
 
 function SiteHeader({ content }) {
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef(null)
   const close = () => setOpen(false)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const escape = (event) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+    window.addEventListener('keydown', escape)
+    return () => window.removeEventListener('keydown', escape)
+  }, [open])
 
   return (
     <header className="chair-header">
       <a className="chair-brand" href="#top" aria-label="JP Cuts home">
-        <strong>{content.brand.publicName}</strong>
+        {content.brand.logo?.url
+          ? <img src={content.brand.logo.url} alt="" />
+          : <strong>{content.brand.publicName}</strong>}
         <span>{content.facts.mobile}</span>
       </a>
       <nav className="chair-desktop-nav" aria-label="Primary navigation">
@@ -62,6 +78,7 @@ function SiteHeader({ content }) {
       </nav>
       <ExternalButton href={content.booking.url} className="chair-header-book">{content.booking.label}</ExternalButton>
       <button
+        ref={triggerRef}
         type="button"
         className="chair-menu-trigger"
         aria-label={open ? 'Close menu' : 'Open menu'}
@@ -90,11 +107,42 @@ function Hero({ content }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
+        <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
+          <strong>{content.services[0].price}</strong>
+          <span>Haircut · {content.services[0].duration}</span>
+        </div>
         <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
           <span>{content.booking.label}</span>
-          <strong>{content.services[0].price} · {content.services[0].duration}</strong>
         </a>
         <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>
+      </div>
+    </section>
+  )
+}
+
+function Availability({ content }) {
+  const faded = content.locations.fadedUniversity
+  const lipscomb = content.locations.lipscomb
+  return (
+    <section className="chair-availability" aria-labelledby="chair-availability-heading">
+      <header>
+        <p className="chair-kicker">Locations & availability</p>
+        <h2 id="chair-availability-heading">Where JP cuts</h2>
+      </header>
+      <div className="chair-location-grid">
+        <article>
+          <p>{faded.availabilityLabel}</p>
+          <h3>{faded.name}</h3>
+          <address>{faded.address}</address>
+          <strong>{faded.hours}</strong>
+          <span>{faded.bookingNote}</span>
+        </article>
+        <article>
+          <p>{lipscomb.availabilityLabel}</p>
+          <h3>{lipscomb.name}</h3>
+          <strong>{lipscomb.businessNote}</strong>
+          <span>{lipscomb.locationNote}</span>
+        </article>
       </div>
     </section>
   )
@@ -151,7 +199,6 @@ function About({ content }) {
         <div className="chair-bio-copy">
           {String(content.story.body || '').split(/\n\s*\n/).filter(Boolean).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
         </div>
-        <p className="chair-location">{content.facts.location}</p>
       </div>
       <div className="chair-about-images">
         <Photo asset={content.media.portrait} className="about-main" />
@@ -277,7 +324,7 @@ function SiteFooter({ content }) {
   return (
     <footer className="chair-footer">
       <div className="chair-brand"><strong>{content.brand.publicName}</strong><span>{content.facts.mobile}</span></div>
-      <p>{content.facts.location}</p>
+      <p>{content.locations.fadedUniversity.name} · {content.locations.lipscomb.name}</p>
       <div className="chair-socials" aria-label="JP Cuts on social media">
         {socialLinks.map(([key, label, Icon]) => content.contact[key] && (
           <a key={key} href={content.contact[key]} target="_blank" rel="noreferrer" aria-label={label}>
@@ -340,8 +387,9 @@ function ExternalButton({ href, className = '', children }) {
 }
 
 function HeroHeadline({ text }) {
-  const parts = String(text || '').trim().replace(/\.$/, '').split(/\.\s+/)
-  if (parts.length < 2) return text
+  const original = String(text || '').trim()
+  if (!/\.\s+/.test(original)) return <span>{original}</span>
+  const parts = original.replace(/\.$/, '').split(/\.\s+/)
   return parts.filter(Boolean).map((part, index) => (
     <span key={part}>{part}.{index < parts.length - 1 ? ' ' : ''}</span>
   ))

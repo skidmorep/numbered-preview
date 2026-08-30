@@ -7,6 +7,7 @@ const RESET_TTL_SECONDS = 30 * 60
 const PASSWORD_ITERATIONS = 100000
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const MAX_LOGIN_ATTEMPTS = 5
+const MAX_LOGIN_IP_ATTEMPTS = 20
 const RESET_WINDOW_MS = 60 * 60 * 1000
 const RESET_COOLDOWN_MS = 60 * 1000
 const MAX_RESET_EMAIL_REQUESTS = 3
@@ -18,6 +19,7 @@ const MAX_CONTACT_IP_REQUESTS = 5
 const MAX_CONTENT_BYTES = 80_000
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024
+const DUMMY_PASSWORD_HASH = 'pbkdf2-sha256$100000$AAAAAAAAAAAAAAAAAAAAAA==$jMPkjSokTG0Hd8pMdYFB8+druIz+7VIq/BBF/coTPAY='
 
 const mediaTypes = {
   'image/jpeg': { extension: 'jpg', kind: 'image', maxBytes: MAX_IMAGE_BYTES },
@@ -133,15 +135,15 @@ async function authenticate(request, env, identifier, password) {
   if (!identifier || !password) throw responseError('Email and password are required', 400)
   if (password.length > 128) throw responseError('Invalid credentials', 401)
 
-  const attemptKey = await sha256Base64(`${clientIp(request)}|${identifier}`)
-  await enforceLoginThrottle(env, attemptKey)
+  const admission = await reserveLoginAttempt(request, env, identifier)
+  if (!admission.allowed) throw responseError('Too many sign-in attempts. Try again in 15 minutes.', 429)
   const user = await findUser(env, identifier)
-  if (!user || user.disabled || !(await verifyPassword(password, user.password_hash))) {
-    await recordFailedLogin(env, attemptKey)
+  const passwordMatches = await verifyPassword(password, user?.password_hash || DUMMY_PASSWORD_HASH)
+  if (!user || user.disabled || !passwordMatches) {
     throw responseError('Invalid credentials', 401)
   }
 
-  await env.DB.prepare('delete from login_attempts where key = ?').bind(attemptKey).run()
+  await env.DB.prepare('delete from password_reset_limits where key = ?').bind(admission.pairKey).run()
   return createSession(env, user)
 }
 
@@ -250,49 +252,39 @@ async function submitContact(request, env) {
     eventDate: requireEventDate(body.eventDate),
     details: contactText(body.details, 'Event details', 1_200),
   }
-  if (!(await allowContactRequest(request, env, submission.email))) {
+  const admission = await allowContactRequest(request, env, submission)
+  if (!admission.allowed) {
     throw responseError('Too many messages were sent. Please try again later.', 429)
   }
   if (!env.CONTACT_EMAIL_TO || (!env.RESEND_API_KEY && !env.EMAIL_TRANSPORT)) {
+    await releaseRateLimit(env, admission.replayKey)
     throw responseError('The contact form is temporarily unavailable. Please try again later.', 503)
   }
-  if (!(await sendContactEmail(env, submission))) {
+  if (!(await sendContactEmail(env, submission, admission.replayKey))) {
+    await releaseRateLimit(env, admission.replayKey)
     throw responseError('Message could not be sent. Please try again.', 502)
   }
   return json({ ok: true })
 }
 
-async function allowContactRequest(request, env, email) {
+async function allowContactRequest(request, env, submission) {
   const now = Date.now()
-  const emailKey = `contact:email:${await sha256Base64(email)}`
+  const emailKey = `contact:email:${await sha256Base64(submission.email)}`
   const ipKey = `contact:ip:${await sha256Base64(clientIp(request))}`
-  const [emailLimit, ipLimit] = await Promise.all([
-    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(emailKey).first(),
-    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(ipKey).first(),
+  const replayFingerprint = await sha256Base64(JSON.stringify([
+    submission.name, submission.email, submission.organization, submission.eventDate, submission.details,
+    Math.floor(now / CONTACT_WINDOW_MS),
+  ]))
+  const replayKey = `contact:replay:${replayFingerprint}`
+  const [emailAllowed, ipAllowed, replayAllowed] = await Promise.all([
+    reserveRateLimit(env, emailKey, { now, windowMs: CONTACT_WINDOW_MS, maxAttempts: MAX_CONTACT_EMAIL_REQUESTS }),
+    reserveRateLimit(env, ipKey, { now, windowMs: CONTACT_WINDOW_MS, maxAttempts: MAX_CONTACT_IP_REQUESTS, cooldownMs: CONTACT_COOLDOWN_MS }),
+    reserveRateLimit(env, replayKey, { now, windowMs: CONTACT_WINDOW_MS, maxAttempts: 1 }),
   ])
-  const emailState = nextContactLimit(emailLimit, now)
-  const ipState = nextContactLimit(ipLimit, now)
-  const coolingDown = ipLimit?.last_requested_at && Date.parse(ipLimit.last_requested_at) > now - CONTACT_COOLDOWN_MS
-  const allowed = !coolingDown && emailState.attempts <= MAX_CONTACT_EMAIL_REQUESTS && ipState.attempts <= MAX_CONTACT_IP_REQUESTS
-
-  await env.DB.batch([
-    resetLimitStatement(env, emailKey, emailState),
-    resetLimitStatement(env, ipKey, ipState),
-  ])
-  return allowed
+  return { allowed: emailAllowed && ipAllowed && replayAllowed, replayKey }
 }
 
-function nextContactLimit(row, now) {
-  const expired = !row || Date.parse(row.window_started) < now - CONTACT_WINDOW_MS
-  return {
-    attempts: expired ? 1 : Number(row.attempts) + 1,
-    windowStarted: expired ? new Date(now).toISOString() : row.window_started,
-    lastRequestedAt: new Date(now).toISOString(),
-  }
-}
-
-async function sendContactEmail(env, submission) {
-  const messageId = crypto.randomUUID()
+async function sendContactEmail(env, submission, replayKey) {
   const message = {
     from: env.CONTACT_EMAIL_FROM || env.RESET_EMAIL_FROM || 'JP Cuts website <jpcuuts@parabolos.com>',
     to: [requireEmail(env.CONTACT_EMAIL_TO)],
@@ -307,6 +299,7 @@ async function sendContactEmail(env, submission) {
       'Event details:',
       submission.details,
     ].join('\n'),
+    idempotency_key: replayKey,
   }
   if (env.EMAIL_TRANSPORT) return Boolean((await env.EMAIL_TRANSPORT.send(message))?.sent)
 
@@ -315,7 +308,7 @@ async function sendContactEmail(env, submission) {
     headers: {
       authorization: `Bearer ${env.RESEND_API_KEY}`,
       'content-type': 'application/json',
-      'idempotency-key': `jpcuuts-contact/${messageId}`,
+      'idempotency-key': `jpcuuts-contact/${replayKey.slice('contact:replay:'.length)}`,
     },
     body: JSON.stringify(message),
   })
@@ -326,38 +319,45 @@ async function allowPasswordResetRequest(request, env, email) {
   const now = Date.now()
   const emailKey = `email:${await sha256Base64(email)}`
   const ipKey = `ip:${await sha256Base64(clientIp(request))}`
-  const [emailLimit, ipLimit] = await Promise.all([
-    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(emailKey).first(),
-    env.DB.prepare('select attempts, window_started, last_requested_at from password_reset_limits where key = ?').bind(ipKey).first(),
+  const [emailAllowed, ipAllowed] = await Promise.all([
+    reserveRateLimit(env, emailKey, { now, windowMs: RESET_WINDOW_MS, maxAttempts: MAX_RESET_EMAIL_REQUESTS, cooldownMs: RESET_COOLDOWN_MS }),
+    reserveRateLimit(env, ipKey, { now, windowMs: RESET_WINDOW_MS, maxAttempts: MAX_RESET_IP_REQUESTS }),
   ])
-  const emailState = nextResetLimit(emailLimit, now)
-  const ipState = nextResetLimit(ipLimit, now)
-  const emailCoolingDown = emailLimit?.last_requested_at && Date.parse(emailLimit.last_requested_at) > now - RESET_COOLDOWN_MS
-  const allowed = !emailCoolingDown && emailState.attempts <= MAX_RESET_EMAIL_REQUESTS && ipState.attempts <= MAX_RESET_IP_REQUESTS
-
-  await env.DB.batch([
-    resetLimitStatement(env, emailKey, emailState),
-    resetLimitStatement(env, ipKey, ipState),
-  ])
-  return allowed
+  return emailAllowed && ipAllowed
 }
 
-function nextResetLimit(row, now) {
-  const expired = !row || Date.parse(row.window_started) < now - RESET_WINDOW_MS
-  return {
-    attempts: expired ? 1 : Number(row.attempts) + 1,
-    windowStarted: expired ? new Date(now).toISOString() : row.window_started,
-    lastRequestedAt: new Date(now).toISOString(),
-  }
+async function reserveLoginAttempt(request, env, identifier) {
+  const now = Date.now()
+  const ip = clientIp(request)
+  const normalizedIdentifier = String(identifier || '').trim().toLowerCase()
+  const pairKey = `login:pair:${await sha256Base64(`${ip}|${normalizedIdentifier}`)}`
+  const ipKey = `login:ip:${await sha256Base64(ip)}`
+  const allowed = await Promise.all([
+    reserveRateLimit(env, pairKey, { now, windowMs: LOGIN_WINDOW_MS, maxAttempts: MAX_LOGIN_ATTEMPTS }),
+    reserveRateLimit(env, ipKey, { now, windowMs: LOGIN_WINDOW_MS, maxAttempts: MAX_LOGIN_IP_ATTEMPTS }),
+  ])
+  return { allowed: allowed.every(Boolean), pairKey, ipKey }
 }
 
-function resetLimitStatement(env, key, state) {
-  return env.DB.prepare(
+async function reserveRateLimit(env, key, { now, windowMs, maxAttempts, cooldownMs = 0 }) {
+  const timestamp = new Date(now).toISOString()
+  const resetBefore = new Date(now - windowMs).toISOString()
+  const cooldownBefore = new Date(now - cooldownMs).toISOString()
+  const row = await env.DB.prepare(
     `insert into password_reset_limits (key, attempts, window_started, last_requested_at)
-      values (?, ?, ?, ?) on conflict(key) do update set
-      attempts = excluded.attempts, window_started = excluded.window_started,
-      last_requested_at = excluded.last_requested_at`,
-  ).bind(key, state.attempts, state.windowStarted, state.lastRequestedAt)
+      values (?, 1, ?, ?) on conflict(key) do update set
+      attempts = case when password_reset_limits.window_started < ? then 1 else password_reset_limits.attempts + 1 end,
+      window_started = case when password_reset_limits.window_started < ? then excluded.window_started else password_reset_limits.window_started end,
+      last_requested_at = excluded.last_requested_at
+      where password_reset_limits.window_started < ?
+        or (password_reset_limits.attempts < ? and password_reset_limits.last_requested_at <= ?)
+      returning attempts`,
+  ).bind(key, timestamp, timestamp, resetBefore, resetBefore, resetBefore, maxAttempts, cooldownBefore).first()
+  return Boolean(row)
+}
+
+async function releaseRateLimit(env, key) {
+  if (key) await env.DB.prepare('delete from password_reset_limits where key = ?').bind(key).run()
 }
 
 async function sendPasswordResetEmail(env, { email, token, inviteId }) {
@@ -484,31 +484,33 @@ async function updateContent(request, env) {
   assertMutationOrigin(request)
   const auth = await requireSession(request, env)
   const body = await readJson(request, MAX_CONTENT_BYTES + 2_000)
-  const expectedRevision = Number(body.revision)
+  const expectedRevision = body.revision
   if (!Number.isInteger(expectedRevision) || expectedRevision < 0) throw responseError('A valid revision is required', 400)
   const content = mergeContent(body.content)
   validateContent(content)
   const contentJson = JSON.stringify(content)
   if (new TextEncoder().encode(contentJson).byteLength > MAX_CONTENT_BYTES) throw responseError('Content is too large', 413)
 
-  const state = await readSiteState(env)
-  const currentRevision = state?.revision || 0
-  if (currentRevision !== expectedRevision) throw responseError('This preview changed on another device. Refresh before saving again.', 409)
-  const nextRevision = currentRevision + 1
+  const nextRevision = expectedRevision + 1
   const now = nowIso()
-  if (!state) {
-    await env.DB.prepare(
-      'insert into site_state (id, content_json, revision, updated_by, updated_at) values (1, ?, ?, ?, ?)',
-    ).bind(contentJson, nextRevision, auth.user.id, now).run()
-  } else {
-    const result = await env.DB.prepare(
+  const stateStatement = expectedRevision === 0
+    ? env.DB.prepare(
+      `insert into site_state (id, content_json, revision, updated_by, updated_at)
+        values (1, ?, ?, ?, ?) on conflict(id) do nothing`,
+    ).bind(contentJson, nextRevision, auth.user.id, now)
+    : env.DB.prepare(
       'update site_state set content_json = ?, revision = ?, updated_by = ?, updated_at = ? where id = 1 and revision = ?',
-    ).bind(contentJson, nextRevision, auth.user.id, now, currentRevision).run()
-    if (result.meta?.changes !== 1) throw responseError('This preview changed on another device. Refresh before saving again.', 409)
+    ).bind(contentJson, nextRevision, auth.user.id, now, expectedRevision)
+  const results = await env.DB.batch([
+    stateStatement,
+    env.DB.prepare(
+      `insert into site_revisions (revision, content_json, created_by, created_at)
+        select ?, ?, ?, ? where changes() = 1`,
+    ).bind(nextRevision, contentJson, auth.user.id, now),
+  ])
+  if (results[0]?.meta?.changes !== 1 || results[1]?.meta?.changes !== 1) {
+    throw responseError('This preview changed on another device. Your edits are still here; reload only after copying anything you need.', 409)
   }
-  await env.DB.prepare(
-    'insert into site_revisions (revision, content_json, created_by, created_at) values (?, ?, ?, ?)',
-  ).bind(nextRevision, contentJson, auth.user.id, now).run()
   return json({ ok: true, revision: nextRevision })
 }
 
@@ -520,11 +522,14 @@ async function uploadMedia(request, env) {
 
   const form = await request.formData()
   const file = form.get('file')
+  const purpose = String(form.get('purpose') || 'media')
   const alt = plainText(form.get('alt') || '', 'Alt text', 180, true)
   if (!(file instanceof File)) throw responseError('Choose a media file', 400)
   const detectedType = await detectMediaType(file)
   const config = mediaTypes[detectedType]
   if (!config || detectedType !== file.type.toLowerCase()) throw responseError('File contents do not match an allowed media type', 415)
+  if (purpose === 'logo' && config.kind !== 'image') throw responseError('Logo files must be PNG, JPEG, WebP, or AVIF images', 415)
+  if (!['media', 'logo'].includes(purpose)) throw responseError('Invalid upload purpose', 400)
   if (file.size <= 0 || file.size > config.maxBytes) {
     throw responseError(config.kind === 'image' ? 'Images must be 6 MB or smaller' : 'Videos must be 15 MB or smaller', 413)
   }
@@ -532,8 +537,8 @@ async function uploadMedia(request, env) {
 
   const key = `${crypto.randomUUID()}.${config.extension}`
   await env.MEDIA.put(key, file.stream(), {
-    httpMetadata: { contentType: detectedType, cacheControl: 'public, max-age=31536000, immutable' },
-    customMetadata: { alt, uploadedBy: auth.user.id },
+    httpMetadata: { contentType: detectedType, cacheControl: 'private, no-store' },
+    customMetadata: { alt, purpose, uploadedBy: auth.user.id },
   })
   await env.DB.prepare(
     'insert into site_media (id, object_key, media_type, byte_size, alt_text, created_by, created_at) values (?, ?, ?, ?, ?, ?, ?)',
@@ -580,7 +585,7 @@ function mediaHeaders(object, range) {
   const headers = new Headers()
   object.writeHttpMetadata?.(headers)
   headers.set('content-type', object.httpMetadata?.contentType || 'application/octet-stream')
-  headers.set('cache-control', 'public, max-age=31536000, immutable')
+  headers.set('cache-control', 'private, no-store')
   headers.set('accept-ranges', 'bytes')
   headers.set('x-content-type-options', 'nosniff')
   headers.set('content-disposition', 'inline')
@@ -620,27 +625,6 @@ async function readSiteState(env) {
   catch { throw new Error('Invalid stored content') }
 }
 
-async function enforceLoginThrottle(env, key) {
-  const row = await env.DB.prepare('select attempts, window_started, blocked_until from login_attempts where key = ?').bind(key).first()
-  if (row?.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
-    throw responseError('Too many sign-in attempts. Try again in 15 minutes.', 429)
-  }
-}
-
-async function recordFailedLogin(env, key) {
-  const row = await env.DB.prepare('select attempts, window_started from login_attempts where key = ?').bind(key).first()
-  const now = Date.now()
-  const expired = !row || Date.parse(row.window_started) < now - LOGIN_WINDOW_MS
-  const attempts = expired ? 1 : Number(row.attempts) + 1
-  const windowStarted = expired ? new Date(now).toISOString() : row.window_started
-  const blockedUntil = attempts >= MAX_LOGIN_ATTEMPTS ? new Date(now + LOGIN_WINDOW_MS).toISOString() : null
-  await env.DB.prepare(
-    `insert into login_attempts (key, attempts, window_started, blocked_until)
-      values (?, ?, ?, ?) on conflict(key) do update set
-      attempts = excluded.attempts, window_started = excluded.window_started, blocked_until = excluded.blocked_until`,
-  ).bind(key, attempts, windowStarted, blockedUntil).run()
-}
-
 function validateContent(content) {
   if (!content || typeof content !== 'object' || Array.isArray(content)) throw responseError('Content must be an object', 400)
   const required = [
@@ -651,6 +635,11 @@ function validateContent(content) {
     ['servicesSection.eyebrow', 120], ['servicesSection.heading', 160],
     ['story.heading', 120], ['story.subtitle', 160], ['story.body', 1400],
     ['facts.priceRange', 30], ['facts.location', 120], ['facts.mobile', 60],
+    ['locations.fadedUniversity.name', 80], ['locations.fadedUniversity.address', 160],
+    ['locations.fadedUniversity.availabilityLabel', 80], ['locations.fadedUniversity.hours', 180],
+    ['locations.fadedUniversity.bookingNote', 180], ['locations.lipscomb.name', 80],
+    ['locations.lipscomb.availabilityLabel', 80], ['locations.lipscomb.businessNote', 260],
+    ['locations.lipscomb.locationNote', 180],
     ['events.outlineHeading', 120], ['events.heading', 120], ['events.body', 700], ['events.actionLabel', 60],
     ['events.weddingHeading', 100], ['events.teamHeading', 100],
     ['featured.heading', 120],
@@ -659,13 +648,25 @@ function validateContent(content) {
   if (readPath(content, 'brand.publicName') !== 'JP CUTS' || readPath(content, 'brand.bridgeName') !== '@jpcuuts') {
     throw responseError('Brand identity must remain JP CUTS and @jpcuuts', 400)
   }
+  const logo = readPath(content, 'brand.logo')
+  if (!logo || typeof logo !== 'object' || Array.isArray(logo) || logo.type !== 'image') {
+    throw responseError('Brand logo must use the supported image slot', 400)
+  }
+  plainText(logo.alt, 'Brand logo alt text', 180)
+  if (logo.url) optionalImageMediaUrl(logo.url, 'Brand logo')
+  if (readPath(content, 'locations.fadedUniversity.name') !== 'Faded University'
+    || readPath(content, 'locations.fadedUniversity.availabilityLabel') !== 'JP’s school availability'
+    || readPath(content, 'locations.lipscomb.name') !== 'Lipscomb'
+    || readPath(content, 'locations.lipscomb.availabilityLabel') !== 'By appointment') {
+    throw responseError('Location names and availability labels are protected', 400)
+  }
   const bookingUrl = requireUrl(readPath(content, 'booking.url'), ['https:'], 'Booking URL')
   if (bookingUrl !== 'https://calendly.com/jpcuts/30mins') throw responseError('Booking must use the approved Calendly page', 400)
   const instagramUrl = requireUrl(readPath(content, 'contact.instagramUrl'), ['https:'], 'Instagram URL')
   if (instagramUrl !== 'https://www.instagram.com/jpcuuts/') throw responseError('Instagram must use the approved @jpcuuts profile', 400)
-  optionalUrl(readPath(content, 'contact.facebookUrl'), ['https:'], 'Facebook URL')
-  optionalUrl(readPath(content, 'contact.tiktokUrl'), ['https:'], 'TikTok URL')
-  optionalUrl(readPath(content, 'contact.youtubeUrl'), ['https:'], 'YouTube URL')
+  optionalSocialUrl(readPath(content, 'contact.facebookUrl'), ['facebook.com', 'www.facebook.com'], 'Facebook URL')
+  optionalSocialUrl(readPath(content, 'contact.tiktokUrl'), ['tiktok.com', 'www.tiktok.com'], 'TikTok URL')
+  optionalSocialUrl(readPath(content, 'contact.youtubeUrl'), ['youtube.com', 'www.youtube.com', 'youtu.be'], 'YouTube URL')
   if (typeof readPath(content, 'featured.enabled') !== 'boolean' || readPath(content, 'featured.type') !== 'instagram') {
     throw responseError('Featured media must be an optional Instagram Reel link', 400)
   }
@@ -673,7 +674,7 @@ function validateContent(content) {
   if (!/^https:\/\/www\.instagram\.com\/reel\/[A-Za-z0-9_-]+\/$/.test(reelUrl)) throw responseError('Use a direct instagram.com Reel URL', 400)
   if (!Array.isArray(content.services) || content.services.length !== 2) throw responseError('Use only the haircut and beard add-on services', 400)
   const requiredServices = [
-    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes' },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes' },
     { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '' },
   ]
   content.services.forEach((service, index) => {
@@ -725,15 +726,26 @@ function plainText(value, label, max, optional = false) {
 function requireUrl(value, protocols, label) {
   try {
     const url = new URL(String(value || ''))
-    if (!protocols.includes(url.protocol) || (url.protocol === 'https:' && !url.hostname)) throw new Error()
+    if (!protocols.includes(url.protocol) || (url.protocol === 'https:' && !url.hostname) || url.username || url.password) throw new Error()
     return url.toString()
   } catch { throw responseError(`${label} is invalid`, 400) }
 }
-function optionalUrl(value, protocols, label) { if (value) requireUrl(value, protocols, label) }
+function optionalSocialUrl(value, allowedHosts, label) {
+  if (!value) return
+  const normalized = requireUrl(value, ['https:'], label)
+  if (!allowedHosts.includes(new URL(normalized).hostname)) throw responseError(`${label} must use the official service`, 400)
+}
 function optionalMediaUrl(value, label) {
   if (!value) return
-  if (/^\/(?:uploads|media\/defaults)\/[A-Za-z0-9._/-]+$/.test(value)) return
-  requireUrl(value, ['https:'], label)
+  if (/^\/uploads\/[0-9a-f-]{36}\.(?:jpg|png|webp|avif|mp4|webm)$/.test(value)) return
+  if (/^\/media\/defaults\/[A-Za-z0-9_-]+\.(?:jpg|png|webp|avif|mp4|webm)$/.test(value)) return
+  throw responseError(`${label} must use approved site media`, 400)
+}
+function optionalImageMediaUrl(value, label) {
+  if (!value) return
+  if (/^\/uploads\/[0-9a-f-]{36}\.(?:jpg|png|webp|avif)$/.test(value)) return
+  if (/^\/media\/defaults\/[A-Za-z0-9_-]+\.(?:jpg|png|webp|avif)$/.test(value)) return
+  throw responseError(`${label} must use an approved site image`, 400)
 }
 function focusPoint(value, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw responseError(`${label} is required`, 400)
@@ -869,7 +881,7 @@ function authPage({ eyebrow, title, intro, action = '', fields = '', error = '',
   const actionBlock = action ? `<button type="submit">${escapeHtml(action)}</button>` : ''
   return new Response(`<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — JP Cuts</title>
-<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;gap:12px;margin:0 0 22px;font-size:.76rem;font-weight:850;letter-spacing:.08em}.mark{width:44px;height:44px;display:grid;place-items:center;border:2px solid #c61f27;color:#c61f27;font-weight:900}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP</span><b>JP CUTS</b></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
+<style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;margin:0 0 22px;color:#c61f27;font-size:1.15rem;font-weight:950;letter-spacing:.04em}.mark{display:block}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP CUTS</span></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
     status,
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'same-origin' },
   })
@@ -940,8 +952,9 @@ function resetPasswordScript() {
 }
 function finalize(response) {
   const headers = new Headers(response.headers)
-  if (response.status === 401 || response.status === 403) headers.set('cache-control', 'no-store')
+  headers.set('cache-control', 'private, no-store')
   headers.set('x-content-type-options', 'nosniff')
+  headers.set('strict-transport-security', 'max-age=31536000; includeSubDomains')
   if (!headers.has('referrer-policy')) headers.set('referrer-policy', 'strict-origin-when-cross-origin')
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   headers.set('x-frame-options', 'DENY')

@@ -5,10 +5,15 @@ const media = (name, alt, focus = { x: 50, y: 50 }) => ({
   focus: { x: focus.x, y: focus.y },
 })
 
-function safeHttpsUrl(value, fallback = '') {
+function safeSocialUrl(value, allowedHosts, fallback = '') {
   try {
     const url = new URL(String(value || ''))
-    return url.protocol === 'https:' && url.hostname ? url.toString() : fallback
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && allowedHosts.includes(url.hostname)
+      ? url.toString()
+      : fallback
   } catch { return fallback }
 }
 
@@ -23,12 +28,25 @@ function safeInstagramReelUrl(value) {
   } catch { return defaultContent.featured.url }
 }
 
+function safeImageMediaUrl(value, fallback = '') {
+  const url = String(value || '')
+  return /^\/uploads\/[0-9a-f-]{36}\.(?:jpg|png|webp|avif)$/.test(url)
+    || /^\/media\/defaults\/[A-Za-z0-9_-]+\.(?:jpg|png|webp|avif)$/.test(url)
+    ? url
+    : fallback
+}
+
 export const defaultContent = {
-  version: 5,
+  version: 6,
   revision: 0,
   brand: {
     publicName: 'JP CUTS',
     bridgeName: '@jpcuuts',
+    logo: {
+      type: 'image',
+      url: '',
+      alt: 'JP Cuts logo',
+    },
     verseQuote: 'Even the hairs of your head are all numbered.',
     verseReference: 'Matthew 10:30',
   },
@@ -53,7 +71,7 @@ export const defaultContent = {
     heading: 'Simple pricing.\nNo surprises.',
   },
   services: [
-    { id: 'haircut', name: 'Haircut', price: '$35', duration: 'About 35 minutes', note: 'Book through Calendly', enabled: true },
+    { id: 'haircut', name: 'Haircut', price: '$35', duration: '35 minutes', note: 'Book through Calendly', enabled: true },
     { id: 'beard-add-on', name: 'Shave or beard trim', price: '+$5', duration: '', note: 'Add-on with a haircut', enabled: true },
   ],
   facts: {
@@ -61,6 +79,21 @@ export const defaultContent = {
     location: 'Faded University · Smyrna, Middle Tennessee',
     mobile: 'Middle Tennessee',
     bookingTruth: 'Calendly',
+  },
+  locations: {
+    fadedUniversity: {
+      name: 'Faded University',
+      address: '113 Front Street, Smyrna, TN 37167',
+      availabilityLabel: 'JP’s school availability',
+      hours: 'Tuesday–Friday, 9:00am–3:00pm; Saturday, 8:00am–2:00pm',
+      bookingNote: 'Appointments only — use Calendly to book.',
+    },
+    lipscomb: {
+      name: 'Lipscomb',
+      availabilityLabel: 'By appointment',
+      businessNote: 'JP is still cutting at Lipscomb by appointment, where he does the majority of his business.',
+      locationNote: 'JP shares the exact Lipscomb location with booked clients.',
+    },
   },
   proof: {
     rating: '',
@@ -136,6 +169,12 @@ function migrateContent(incoming) {
       ...(legacyContract ? {} : incoming.brand),
       publicName: defaultContent.brand.publicName,
       bridgeName: defaultContent.brand.bridgeName,
+      logo: {
+        ...defaultContent.brand.logo,
+        ...(incoming.brand?.logo || {}),
+        type: 'image',
+        url: safeImageMediaUrl(incoming.brand?.logo?.url),
+      },
     },
     hero: {
       ...defaultContent.hero,
@@ -161,13 +200,23 @@ function migrateContent(incoming) {
     },
     services: defaultContent.services.map((service) => ({
       ...service,
-      note: serviceNotes.get(service.id) || service.note,
+      note: serviceNotes.get(service.id) ?? service.note,
     })),
     facts: {
       ...defaultContent.facts,
       ...(legacyContract ? {} : incoming.facts),
       priceRange: defaultContent.facts.priceRange,
       bookingTruth: defaultContent.facts.bookingTruth,
+    },
+    locations: {
+      fadedUniversity: {
+        ...defaultContent.locations.fadedUniversity,
+        ...(incoming.locations?.fadedUniversity || {}),
+      },
+      lipscomb: {
+        ...defaultContent.locations.lipscomb,
+        ...(incoming.locations?.lipscomb || {}),
+      },
     },
     proof: defaultContent.proof,
     story: {
@@ -186,9 +235,9 @@ function migrateContent(incoming) {
       ...(legacyContract ? {} : incoming.contact),
       phone: '',
       instagramUrl: defaultContent.contact.instagramUrl,
-      facebookUrl: legacyContract ? defaultContent.contact.facebookUrl : safeHttpsUrl(incoming.contact?.facebookUrl, defaultContent.contact.facebookUrl),
-      tiktokUrl: legacyContract ? defaultContent.contact.tiktokUrl : safeHttpsUrl(incoming.contact?.tiktokUrl, defaultContent.contact.tiktokUrl),
-      youtubeUrl: legacyContract ? defaultContent.contact.youtubeUrl : safeHttpsUrl(incoming.contact?.youtubeUrl, defaultContent.contact.youtubeUrl),
+      facebookUrl: legacyContract ? defaultContent.contact.facebookUrl : safeSocialUrl(incoming.contact?.facebookUrl, ['facebook.com', 'www.facebook.com'], defaultContent.contact.facebookUrl),
+      tiktokUrl: legacyContract ? defaultContent.contact.tiktokUrl : safeSocialUrl(incoming.contact?.tiktokUrl, ['tiktok.com', 'www.tiktok.com'], defaultContent.contact.tiktokUrl),
+      youtubeUrl: legacyContract ? defaultContent.contact.youtubeUrl : safeSocialUrl(incoming.contact?.youtubeUrl, ['youtube.com', 'www.youtube.com', 'youtu.be'], defaultContent.contact.youtubeUrl),
     },
     media: legacyMedia ? defaultContent.media : (incoming.media || defaultContent.media),
     featured: {

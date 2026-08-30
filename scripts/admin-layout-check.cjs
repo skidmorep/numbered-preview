@@ -43,23 +43,27 @@ async function main() {
       await page.goto(`${baseUrl}/admin/`, { waitUntil: 'networkidle' })
       await page.getByRole('heading', { name: 'Content editor' }).waitFor()
       for (const label of [
+        'JP logo — upload authentic file',
         'Hero eyebrow',
         'Booking button label',
+        'Faded University street address',
+        'JP’s school hours at Faded University',
+        'Lipscomb appointment note',
         'Outline heading',
         'About subtitle',
-        'Short location label',
         'Filled heading',
         'Instagram Reel URL',
         'Publish Reel link card on the homepage',
         'Facebook URL',
         'Before/after heading',
       ]) {
-        if (!(await page.getByLabel(label, { exact: true }).count())) throw new Error(`${label} control is missing`)
+        if (!(await page.getByText(label, { exact: true }).count())) throw new Error(`${label} control is missing`)
       }
       if (!(await page.getByLabel('Booking URL · approved').evaluate((input) => input.readOnly))) {
         throw new Error('Approved booking URL is not read-only')
       }
       if (await page.getByLabel('Publish Reel link card on the homepage').isChecked()) throw new Error('Reel publish control should default off')
+      if (!(await page.getByText('No authentic logo uploaded. The public site is using the JP CUTS text wordmark.').count())) throw new Error('Honest no-logo fallback is missing')
 
       const metrics = await page.evaluate(() => ({
         width: innerWidth,
@@ -68,28 +72,29 @@ async function main() {
         publishHeight: Math.round(document.querySelector('.publish-bar')?.getBoundingClientRect().height || 0),
       }))
       if (metrics.scrollWidth > metrics.width + 1) throw new Error(`${viewport.name} editor overflows horizontally`)
-      if (metrics.sectionCount < 8) throw new Error(`${viewport.name} editor is missing grouped controls`)
+      if (metrics.sectionCount < 10) throw new Error(`${viewport.name} editor is missing grouped controls`)
 
-      if (viewport.name === 'macbook-air') {
-        const field = page.getByLabel('First photo-group heading')
+      {
+        const field = page.getByLabel('Faded University street address')
         const original = await field.inputValue()
-        await field.fill(`${original} · local check`)
+        await field.fill(`${original} · ${viewport.name} save check`)
         const responsePromise = page.waitForResponse((response) => response.url().endsWith('/api/admin/content') && response.request().method() === 'PUT')
-        await page.getByRole('button', { name: 'Save and publish preview' }).click()
+        await page.getByRole('button', { name: 'Save changes to preview' }).click()
         if ((await responsePromise).status() !== 200) throw new Error('Mock admin save failed')
         await page.reload({ waitUntil: 'networkidle' })
         await page.getByRole('heading', { name: 'Content editor' }).waitFor()
-        if (!(await page.getByLabel('First photo-group heading').inputValue()).endsWith('local check')) throw new Error('Saved admin copy did not persist after reload')
-        await page.getByLabel('First photo-group heading').fill(original)
+        if (!(await page.getByLabel('Faded University street address').inputValue()).endsWith(`${viewport.name} save check`)) throw new Error('Saved location data did not persist after reload')
+        if (!(await page.getByText('No authentic logo uploaded. The public site is using the JP CUTS text wordmark.').count())) throw new Error('No-logo fallback did not survive reload')
+        await page.getByLabel('Faded University street address').fill(original)
         const restorePromise = page.waitForResponse((response) => response.url().endsWith('/api/admin/content') && response.request().method() === 'PUT')
-        await page.getByRole('button', { name: 'Save and publish preview' }).click()
+        await page.getByRole('button', { name: 'Save changes to preview' }).click()
         if ((await restorePromise).status() !== 200) throw new Error('Mock admin restore failed')
       }
 
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.screenshot({ path: path.join(outputDir, `${viewport.name}-top.png`), fullPage: false })
       await page.screenshot({ path: path.join(outputDir, `${viewport.name}-full.png`), fullPage: true })
-      report.push({ viewport, ...metrics, controls: 'passed', saveReloadRestore: viewport.name === 'macbook-air' ? 'passed' : 'not-run' })
+      report.push({ viewport, ...metrics, controls: 'passed', saveReloadRestore: 'passed', logoFallbackReload: 'passed' })
       await page.close()
     }
   } finally {
@@ -97,7 +102,7 @@ async function main() {
   }
 
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify({ baseUrl, report }, null, 2))
-  console.log('Admin copy controls and save/reload layout passed at iPhone and MacBook Air sizes.')
+  console.log('Admin location/logo controls and save/reload layout passed at iPhone and MacBook Air sizes.')
 }
 
 main().catch((error) => {

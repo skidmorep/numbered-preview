@@ -90,7 +90,9 @@ async function main() {
     if (publicState.hasVisibleEmail) throw new Error('Public email or mailto link is exposed')
     if (!publicState.bodyText.includes('Middle Tennessee') || /Nashville|Booksy|JP Cutz/i.test(publicState.bodyText)) throw new Error('Public location or identity copy is stale')
     if ((publicState.bodyText.match(/\bnumbered\b/gi) || []).length !== 1) throw new Error('Numbered language appears outside the single Matthew 10:30 quotation')
-    if (!publicState.bodyText.includes('Haircut$35About 35 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
+    if (!publicState.bodyText.includes('$35Haircut · 35 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
+    if (!publicState.bodyText.includes('113 Front Street, Smyrna, TN 37167') || !publicState.bodyText.includes('Tuesday–Friday, 9:00am–3:00pm; Saturday, 8:00am–2:00pm')) throw new Error('The verified Faded University location and JP school hours are missing')
+    if (!publicState.bodyText.includes('majority of his business')) throw new Error('JP’s Lipscomb appointment statement is missing')
     if (!publicState.verse?.includes('Matthew 10:30')) throw new Error('Verse detail is missing')
     if (publicState.reelCount !== 0) throw new Error('Instagram Reel should be intentionally absent by default')
     if (publicState.eventGroupCount !== 2) throw new Error('Both event photo sets are not rendered')
@@ -128,7 +130,7 @@ async function main() {
       title: document.title,
       width: innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
-      brand: document.querySelector('.editor-auth-brand b')?.textContent.trim(),
+      brand: document.querySelector('.editor-auth-brand .editor-wordmark')?.textContent.trim(),
     }))
     if (editorState.scrollWidth > editorState.width + 1) throw new Error('Editor login overflows horizontally')
     if (editorState.brand !== 'JP CUTS') throw new Error('Editor login branding is stale')
