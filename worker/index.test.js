@@ -276,6 +276,36 @@ test('event contact form delivers plain text server-side without exposing the de
   assert.match(bindings.state.sent[0].text, /six people/)
 })
 
+test('event contact form reports provider failure without claiming delivery', async () => {
+  const bindings = resetRequestEnv()
+  bindings.env.EMAIL_TRANSPORT.send = async (message) => {
+    bindings.state.sent.push(message)
+    return { sent: false }
+  }
+  const response = await handleRequest(new Request('https://numbered.test/api/contact', {
+    method: 'POST',
+    headers: {
+      origin: 'https://numbered.test',
+      'content-type': 'application/json',
+      'cf-connecting-ip': '203.0.113.32',
+      cookie: sessionCookie,
+    },
+    body: JSON.stringify({
+      name: 'Taylor Smith',
+      email: 'taylor@example.com',
+      organization: '',
+      eventDate: '',
+      details: 'A complete event inquiry.',
+      website: '',
+      startedAt: Date.now() - 5_000,
+    }),
+  }), bindings.env)
+
+  assert.equal(response.status, 502)
+  assert.match(await response.text(), /Message could not be sent/)
+  assert.equal(bindings.state.sent.length, 1)
+})
+
 test('event contact form rejects cross-origin, rushed, hostile, and repeated submissions while silently accepting the honeypot', async () => {
   const payload = {
     name: 'Taylor Smith', email: 'taylor@example.com', organization: '', eventDate: '',

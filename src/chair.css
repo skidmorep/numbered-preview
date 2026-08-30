@@ -684,8 +684,8 @@
 }
 
 .before-after-divider span {
-  width: 46px;
-  height: 46px;
+  width: 50px;
+  height: 50px;
   display: grid;
   place-items: center;
   border: 3px solid var(--chair-sand-light);
@@ -703,6 +703,7 @@
   opacity: 0;
   cursor: ew-resize;
   touch-action: pan-y;
+  pointer-events: none;
 }
 
 .before-after input:focus-visible {

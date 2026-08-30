@@ -4,7 +4,7 @@ export function BeforeAfterSlider({ before, after, heading = 'Before and after' 
   const [position, setPosition] = useState(50)
   const labelId = useId()
   const frameRef = useRef(null)
-  const dragging = useRef(false)
+  const gesture = useRef(null)
 
   if (!before?.url || !after?.url) return null
 
@@ -17,17 +17,37 @@ export function BeforeAfterSlider({ before, after, heading = 'Before and after' 
   }
 
   const startDrag = (event) => {
-    dragging.current = true
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    updateFromPointer(event)
+    gesture.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      mode: event.pointerType === 'touch' ? 'pending' : 'dragging',
+    }
+    if (gesture.current.mode === 'dragging') {
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      updateFromPointer(event)
+    }
   }
 
   const moveDrag = (event) => {
-    if (dragging.current) updateFromPointer(event)
+    const current = gesture.current
+    if (!current || current.pointerId !== event.pointerId || current.mode === 'vertical') return
+    if (current.mode === 'pending') {
+      const deltaX = Math.abs(event.clientX - current.startX)
+      const deltaY = Math.abs(event.clientY - current.startY)
+      if (deltaY > 6 && deltaY > deltaX) {
+        current.mode = 'vertical'
+        return
+      }
+      if (deltaX < 8 || deltaX <= deltaY) return
+      current.mode = 'dragging'
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+    }
+    updateFromPointer(event)
   }
 
   const endDrag = (event) => {
-    dragging.current = false
+    gesture.current = null
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
   }
 

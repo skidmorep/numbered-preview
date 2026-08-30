@@ -47,10 +47,27 @@ async function main() {
     const pointerValue = Number(await range.inputValue())
     if (pointerValue < 75) throw new Error(`Before/after finger drag stopped at ${pointerValue}`)
 
+    const scrollBeforeSwipe = await page.evaluate(() => window.scrollY)
+    const swipeStart = { x: box.x + box.width / 2, y: Math.min(box.y + box.height * 0.78, 760) }
+    const swipeEnd = { x: swipeStart.x, y: Math.max(90, swipeStart.y - 220) }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [swipeStart] })
+    for (let step = 1; step <= 8; step += 1) {
+      await touch.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: swipeStart.x, y: swipeStart.y + ((swipeEnd.y - swipeStart.y) * step) / 8 }],
+      })
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await page.waitForTimeout(250)
+    const scrollAfterSwipe = await page.evaluate(() => window.scrollY)
+    if (scrollAfterSwipe < scrollBeforeSwipe + 60) throw new Error('Before/after frame blocked vertical finger scrolling')
+    const swipeValue = Number(await range.inputValue())
+    if (Math.abs(swipeValue - pointerValue) > 2) throw new Error(`Vertical swipe moved the comparison from ${pointerValue} to ${swipeValue}`)
+
     await range.focus()
     await page.keyboard.press('ArrowLeft')
     const keyboardValue = Number(await range.inputValue())
-    if (keyboardValue !== pointerValue - 1) throw new Error('Before/after keyboard control did not move one step')
+    if (keyboardValue !== swipeValue - 1) throw new Error('Before/after keyboard control did not move one step')
 
     await comparison.screenshot({ path: path.join(outputDir, 'before-after-mobile.png') })
 
@@ -89,6 +106,17 @@ async function main() {
     await page.waitForTimeout(2_700)
     if (await contact.locator('form').count()) throw new Error('Contact form did not collapse after its thank-you')
 
+    await page.unroute('**/api/contact')
+    await page.route('**/api/contact', (route) => route.fulfill({ status: 502, contentType: 'application/json', body: '{"error":"Message could not be sent. Try again."}' }))
+    await contact.locator('.chair-contact-toggle').click()
+    await contact.locator('input[name="name"]').fill('Failure proof')
+    await contact.locator('input[name="email"]').fill('proof@example.com')
+    await contact.locator('textarea[name="details"]').fill('This submission must stay open after provider failure.')
+    await contact.getByRole('button', { name: 'Send message' }).click()
+    await contact.getByText('Message could not be sent. Try again.').waitFor()
+    await page.waitForTimeout(2_700)
+    if (!(await contact.locator('form').count())) throw new Error('Contact form collapsed after a failed delivery')
+
     const editor = await browser.newPage({ viewport: { width: 390, height: 844 } })
     await editor.goto(`${baseUrl}/admin/`, { waitUntil: 'networkidle' })
     await editor.getByRole('heading', { name: 'Sign in to edit' }).waitFor()
@@ -104,7 +132,10 @@ async function main() {
     fs.writeFileSync(path.join(outputDir, 'foundation-e2e.json'), JSON.stringify({
       baseUrl,
       pointerValue,
+      swipeValue,
       keyboardValue,
+      scrollBeforeSwipe,
+      scrollAfterSwipe,
       publicState,
       editorState,
     }, null, 2))
