@@ -38,9 +38,11 @@ export default {
 
 export async function handleRequest(request, env, context) {
   const url = new URL(request.url)
+  const publicSite = isPublicSiteRequest(request, env)
+  const finish = (response) => finalize(response, request, env)
 
   try {
-    if (request.method === 'OPTIONS') return finalize(new Response(null, { status: 204 }))
+    if (request.method === 'OPTIONS') return finish(new Response(null, { status: 204 }))
     const route = `${request.method} ${url.pathname.replace(/\/$/, '') || '/'}`
     const routes = {
       'GET /login': () => loginPage('', 200, url.searchParams.get('reset') === '1' ? 'Password saved. Sign in with it now.' : '', loginDestination(url.searchParams.get('next'))),
@@ -65,26 +67,43 @@ export async function handleRequest(request, env, context) {
       'POST /api/admin/users': () => createUser(request, env),
     }
 
-    if (routes[route]) return finalize(await routes[route]())
-    if (url.pathname.startsWith('/api/')) return finalize(json({ error: 'Not found' }, 404))
+    if (routes[route]) return finish(await routes[route]())
+    if (url.pathname.startsWith('/api/')) return finish(json({ error: 'Not found' }, 404))
     if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname.startsWith('/uploads/')) {
-      await requireSession(request, env)
-      return finalize(await serveMedia(request, env, url.pathname.slice('/uploads/'.length)))
+      const key = url.pathname.slice('/uploads/'.length)
+      if (!publicSite) await requireSession(request, env)
+      else if (!(await isPublishedMediaKey(env, key))) return finish(json({ error: 'Not found' }, 404))
+      return finish(await serveMedia(request, env, key))
     }
 
-    const auth = await sessionOrLoginPage(request, env)
-    if (auth instanceof Response) return finalize(auth)
-    if (auth.user.force_password_change && !url.pathname.startsWith('/admin')) {
-      return finalize(new Response(null, { status: 302, headers: { location: '/admin/' } }))
+    if (!publicSite || isAdminPath(url.pathname)) {
+      const auth = await sessionOrLoginPage(request, env)
+      if (auth instanceof Response) return finish(auth)
+      if (auth.user.force_password_change && !url.pathname.startsWith('/admin')) {
+        return finish(new Response(null, { status: 302, headers: { location: '/admin/' } }))
+      }
     }
     const assetRequest = new Request(request)
     assetRequest.headers.delete('authorization')
-    return finalize(await env.ASSETS.fetch(assetRequest))
+    return finish(await env.ASSETS.fetch(assetRequest))
   } catch (error) {
-    if (error instanceof Response) return finalize(error)
+    if (error instanceof Response) return finish(error)
     console.error('jpcuuts-preview request failed', error?.name || 'Error', error?.message || '', error?.stack || '')
-    return finalize(json({ error: 'Internal server error' }, 500))
+    return finish(json({ error: 'Internal server error' }, 500))
   }
+}
+
+function isPublicSiteRequest(request, env) {
+  const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.$/, '')
+  return String(env.PUBLIC_SITE_HOSTS || '')
+    .split(',')
+    .map((host) => host.trim().toLowerCase().replace(/\.$/, ''))
+    .filter(Boolean)
+    .includes(hostname)
+}
+
+function isAdminPath(pathname) {
+  return pathname === '/admin' || pathname.startsWith('/admin/')
 }
 
 async function sessionOrLoginPage(request, env) {
@@ -97,7 +116,7 @@ async function sessionOrLoginPage(request, env) {
 }
 
 async function getPublicContent(request, env) {
-  await requireSession(request, env)
+  if (!isPublicSiteRequest(request, env)) await requireSession(request, env)
   const state = await readSiteState(env)
   return json({ content: state?.content ? mergeContent(state.content) : null, revision: state?.revision || 0 }, 200, { 'cache-control': 'no-store' })
 }
@@ -234,7 +253,7 @@ async function processPasswordResetRequest(request, env, email) {
 
 async function submitContact(request, env) {
   assertMutationOrigin(request)
-  await requireSession(request, env)
+  if (!isPublicSiteRequest(request, env)) await requireSession(request, env)
   const body = await readJson(request, 5_000)
   const website = String(body.website || '').trim()
   const startedAt = Number(body.startedAt)
@@ -579,6 +598,21 @@ async function serveMedia(request, env, key) {
   const object = await env.MEDIA.get(key, range ? { range } : undefined)
   if (!object) return json({ error: 'Not found' }, 404)
   return new Response(object.body, { status: range ? 206 : 200, headers: mediaHeaders(object, range) })
+}
+
+async function isPublishedMediaKey(env, key) {
+  if (!/^[0-9a-f-]{36}\.(?:jpg|png|webp|avif|mp4|webm)$/.test(key)) return false
+  const state = await readSiteState(env)
+  if (!state?.content) return false
+  const target = `/uploads/${key}`
+  const pending = [mergeContent(state.content)]
+  while (pending.length) {
+    const value = pending.pop()
+    if (value === target) return true
+    if (Array.isArray(value)) pending.push(...value)
+    else if (value && typeof value === 'object') pending.push(...Object.values(value))
+  }
+  return false
 }
 
 function mediaHeaders(object, range) {
@@ -950,7 +984,7 @@ function resetPasswordScript() {
     headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' },
   })
 }
-function finalize(response) {
+function finalize(response, request, env) {
   const headers = new Headers(response.headers)
   headers.set('cache-control', 'private, no-store')
   headers.set('x-content-type-options', 'nosniff')
@@ -958,7 +992,12 @@ function finalize(response) {
   if (!headers.has('referrer-policy')) headers.set('referrer-policy', 'strict-origin-when-cross-origin')
   headers.set('permissions-policy', 'camera=(), microphone=(), geolocation=(), payment=()')
   headers.set('x-frame-options', 'DENY')
-  headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
+  const pathname = new URL(request.url).pathname
+  const privateSurface = !isPublicSiteRequest(request, env) || isAdminPath(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/uploads/') || [
+    '/login', '/claim', '/forgot-password', '/reset-password', '/reset-password-script.js',
+  ].includes(pathname.replace(/\/$/, '') || '/')
+  if (privateSurface) headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
+  else headers.delete('x-robots-tag')
   headers.set('content-security-policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; frame-src 'none'; connect-src 'self'")
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
 }

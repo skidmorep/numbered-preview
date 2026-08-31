@@ -1,6 +1,10 @@
 name = "numbered-preview-dev"
 main = "worker/index.js"
 compatibility_date = "2026-01-28"
+routes = [
+  { pattern = "jpcuuts.com", custom_domain = true },
+  { pattern = "www.jpcuuts.com", custom_domain = true },
+]
 
 [assets]
 directory = "./dist"
@@ -10,7 +14,8 @@ run_worker_first = true
 
 [vars]
 INITIAL_ADMIN_EMAIL = "skidmore@parabolos.com"
-PUBLIC_ORIGIN = "https://dev.jpcuuts.com"
+PUBLIC_ORIGIN = "https://jpcuuts.com"
+PUBLIC_SITE_HOSTS = "jpcuuts.com,www.jpcuuts.com"
 RESET_EMAIL_FROM = "JP Cuts <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_FROM = "JP Cuts website <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_TO = "jp@jpcuuts.com"

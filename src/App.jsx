@@ -6,7 +6,7 @@ import { PublicSite } from './TheChairSite'
 import { Editor } from './Editor'
 
 function App() {
-  const isEditor = window.location.pathname.startsWith('/admin')
+  const isEditor = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
   const [content, setContent] = useState(defaultContent)
   const [contentStatus, setContentStatus] = useState('loading')
 

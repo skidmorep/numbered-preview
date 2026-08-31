@@ -303,6 +303,65 @@ test('unauthenticated visitors receive only the login shell while APIs and media
   }
 })
 
+test('configured production hosts expose only the public site, content, media, and contact entry point', async () => {
+  const publishedKey = '11111111-1111-1111-1111-111111111111.jpg'
+  const unpublishedKey = '22222222-2222-2222-2222-222222222222.jpg'
+  const publishedContent = structuredClone(defaultContent)
+  publishedContent.brand.logo.url = `/uploads/${publishedKey}`
+  const env = authenticatedEnv(publishedContent, { session: false })
+  env.PUBLIC_SITE_HOSTS = 'numbered.test,www.numbered.test'
+  const media = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0])
+  const mediaObject = {
+    body: media,
+    size: media.byteLength,
+    httpMetadata: { contentType: 'image/jpeg' },
+    writeHttpMetadata(headers) { headers.set('content-type', 'image/jpeg') },
+  }
+  env.MEDIA = {
+    async head() { return mediaObject },
+    async get() { return mediaObject },
+    async put() {},
+  }
+
+  const homepage = await handleRequest(new Request('https://numbered.test/'), env)
+  assert.equal(homepage.status, 200)
+  assert.equal(await homepage.text(), 'site')
+  assert.equal(homepage.headers.get('x-robots-tag'), null)
+
+  const content = await handleRequest(new Request('https://numbered.test/api/content'), env)
+  assert.equal(content.status, 200)
+  assert.equal((await content.json()).content.brand.logo.url, `/uploads/${publishedKey}`)
+
+  const publishedMedia = await handleRequest(new Request(`https://numbered.test/uploads/${publishedKey}`), env)
+  assert.equal(publishedMedia.status, 200)
+  assert.equal(publishedMedia.headers.get('content-type'), 'image/jpeg')
+  assert.deepEqual(new Uint8Array(await publishedMedia.arrayBuffer()), media)
+  const unpublishedMedia = await handleRequest(new Request(`https://numbered.test/uploads/${unpublishedKey}`), env)
+  assert.equal(unpublishedMedia.status, 404)
+
+  for (const path of ['/admin/', '/admin/content']) {
+    const adminPage = await handleRequest(new Request(`https://numbered.test${path}`), env)
+    assert.equal(adminPage.status, 200)
+    assert.match(await adminPage.text(), /Private preview/)
+  }
+  for (const [path, method] of [
+    ['/api/session', 'GET'], ['/api/admin/content', 'GET'], ['/api/admin/content', 'PUT'],
+    ['/api/admin/media', 'POST'], ['/api/admin/users', 'POST'], ['/api/change-password', 'POST'],
+  ]) {
+    const response = await handleRequest(new Request(`https://numbered.test${path}`, {
+      method,
+      headers: method === 'GET' ? {} : { origin: 'https://numbered.test' },
+    }), env)
+    assert.equal(response.status, 401, `${method} ${path}`)
+  }
+
+  const unlistedHost = await handleRequest(new Request('https://preview.numbered.test/'), env)
+  assert.match(await unlistedHost.text(), /Private preview/)
+  assert.equal(unlistedHost.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive')
+  const spoofedHost = await handleRequest(new Request('https://numbered.test.evil/'), env)
+  assert.match(await spoofedHost.text(), /Private preview/)
+})
+
 test('login exposes an emailed forgot-password flow without account disclosure', async () => {
   const login = await handleRequest(new Request('https://numbered.test/login/'), untouchedBindings().env)
   const loginHtml = await login.text()
@@ -387,15 +446,15 @@ test('reset links keep tokens out of requests and response HTML', async () => {
   assert.doesNotMatch(await invalid.text(), new RegExp(secret))
 })
 
-test('event contact form delivers plain text server-side without exposing the destination address', async () => {
+test('public event contact form delivers plain text server-side without exposing the destination address', async () => {
   const bindings = resetRequestEnv()
+  bindings.env.PUBLIC_SITE_HOSTS = 'numbered.test'
   const response = await handleRequest(new Request('https://numbered.test/api/contact', {
     method: 'POST',
     headers: {
       origin: 'https://numbered.test',
       'content-type': 'application/json',
       'cf-connecting-ip': '203.0.113.30',
-      cookie: sessionCookie,
     },
     body: JSON.stringify({
       name: 'Taylor Smith',

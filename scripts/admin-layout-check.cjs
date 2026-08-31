@@ -63,7 +63,7 @@ async function main() {
         throw new Error('Approved booking URL is not read-only')
       }
       if (await page.getByLabel('Publish Reel link card on the homepage').isChecked()) throw new Error('Reel publish control should default off')
-      if (!(await page.getByText('No authentic logo uploaded. The public site is using the JP CUTS text wordmark.').count())) throw new Error('Honest no-logo fallback is missing')
+      if (!(await page.getByText('Authentic logo ready in this draft.').count())) throw new Error('Official-logo status is missing')
 
       const metrics = await page.evaluate(() => ({
         width: innerWidth,
@@ -84,7 +84,7 @@ async function main() {
         await page.reload({ waitUntil: 'networkidle' })
         await page.getByRole('heading', { name: 'Content editor' }).waitFor()
         if (!(await page.getByLabel('Faded University street address').inputValue()).endsWith(`${viewport.name} save check`)) throw new Error('Saved location data did not persist after reload')
-        if (!(await page.getByText('No authentic logo uploaded. The public site is using the JP CUTS text wordmark.').count())) throw new Error('No-logo fallback did not survive reload')
+        if (!(await page.getByText('Authentic logo ready in this draft.').count())) throw new Error('Official-logo status did not survive reload')
         await page.getByLabel('Faded University street address').fill(original)
         const restorePromise = page.waitForResponse((response) => response.url().endsWith('/api/admin/content') && response.request().method() === 'PUT')
         await page.getByRole('button', { name: 'Save changes to preview' }).click()
@@ -94,7 +94,7 @@ async function main() {
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.screenshot({ path: path.join(outputDir, `${viewport.name}-top.png`), fullPage: false })
       await page.screenshot({ path: path.join(outputDir, `${viewport.name}-full.png`), fullPage: true })
-      report.push({ viewport, ...metrics, controls: 'passed', saveReloadRestore: 'passed', logoFallbackReload: 'passed' })
+      report.push({ viewport, ...metrics, controls: 'passed', saveReloadRestore: 'passed', officialLogoReload: 'passed' })
       await page.close()
     }
   } finally {
