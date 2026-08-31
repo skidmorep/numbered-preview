@@ -2,6 +2,7 @@ name = "numbered-preview-dev"
 main = "worker/index.js"
 compatibility_date = "2026-01-28"
 routes = [
+  { pattern = "dev.jpcuuts.com", custom_domain = true },
   { pattern = "jpcuuts.com", custom_domain = true },
   { pattern = "www.jpcuuts.com", custom_domain = true },
 ]
