@@ -93,10 +93,14 @@ export async function handleRequest(request, env, context) {
   }
 }
 
+function isVersionPreviewRequest(request, env) {
+  const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.$/, '')
+  return env.JPCUUTS_VERSION_PREVIEW === '1' && hostname.endsWith('.workers.dev')
+}
+
 function isPublicSiteRequest(request, env) {
   const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.$/, '')
-  const versionPreviewHost = env.JPCUUTS_VERSION_PREVIEW === '1' && hostname.endsWith('.workers.dev')
-  if (versionPreviewHost) return true
+  if (isVersionPreviewRequest(request, env)) return true
   return String(env.PUBLIC_SITE_HOSTS || '')
     .split(',')
     .map((host) => host.trim().toLowerCase().replace(/\.$/, ''))
@@ -998,7 +1002,7 @@ function finalize(response, request, env) {
   const privateSurface = !isPublicSiteRequest(request, env) || isAdminPath(pathname) || pathname.startsWith('/api/') || pathname.startsWith('/uploads/') || [
     '/login', '/claim', '/forgot-password', '/reset-password', '/reset-password-script.js',
   ].includes(pathname.replace(/\/$/, '') || '/')
-  if (privateSurface) headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
+  if (privateSurface || isVersionPreviewRequest(request, env)) headers.set('x-robots-tag', 'noindex, nofollow, noarchive')
   else headers.delete('x-robots-tag')
   headers.set('content-security-policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; frame-src 'none'; connect-src 'self'")
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers })

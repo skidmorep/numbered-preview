@@ -21,7 +21,6 @@ PUBLIC_SITE_HOSTS = "jpcuuts.com,www.jpcuuts.com"
 RESET_EMAIL_FROM = "JP Cuts <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_FROM = "JP Cuts website <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_TO = "jp@jpcuuts.com"
-JPCUUTS_VERSION_PREVIEW = "1"
 
 [[d1_databases]]
 binding = "DB"

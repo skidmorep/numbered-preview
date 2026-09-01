@@ -370,6 +370,7 @@ test('flagged Cloudflare version previews expose the public site but keep admin 
   const homepage = await handleRequest(new Request(`https://${previewHost}/`), env)
   assert.equal(homepage.status, 200)
   assert.equal(await homepage.text(), 'site')
+  assert.equal(homepage.headers.get('x-robots-tag'), 'noindex, nofollow, noarchive')
 
   const content = await handleRequest(new Request(`https://${previewHost}/api/content`), env)
   assert.equal(content.status, 200)
