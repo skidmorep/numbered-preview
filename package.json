@@ -10,6 +10,8 @@
     "test": "node --test worker/*.test.js",
     "test:foundation": "node scripts/foundation-e2e.cjs",
     "test:chair": "node scripts/chair-visual-check.cjs",
+    "test:jp-feedback": "node scripts/jp-feedback-check.cjs",
+    "test:jp-isolation": "node scripts/jp-isolation-check.cjs",
     "cf:dev": "npm run build && wrangler dev",
     "cf:migrate:local": "wrangler d1 migrations apply numbered-preview-dev-db --local",
     "cf:migrate:remote": "wrangler d1 migrations apply numbered-preview-dev-db --remote",

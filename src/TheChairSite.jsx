@@ -17,23 +17,24 @@ const socialLinks = [
   ['youtubeUrl', 'YouTube', YoutubeLogo],
 ]
 
-export function PublicSite({ content, contentStatus }) {
+export function PublicSite({ content, contentStatus, presentation = 'current' }) {
+  const feedbackPreview = presentation === 'jp-feedback'
   return (
-    <div className="chair-site" id="top">
+    <div className={`chair-site ${feedbackPreview ? 'is-jp-feedback-preview' : ''}`} id="top">
       {contentStatus === 'fallback' && (
         <p className="chair-fallback" role="status">Showing bundled preview copy while the editor reconnects.</p>
       )}
       <SiteHeader content={content} />
       <main>
-        <Hero content={content} />
-        <Availability content={content} />
+        <Hero content={content} feedbackPreview={feedbackPreview} />
+        <Availability content={content} feedbackPreview={feedbackPreview} />
         <CamoAccent />
-        <Work content={content} />
+        <Work content={content} feedbackPreview={feedbackPreview} />
         <CamoAccent compact />
-        <Services content={content} />
+        <Services content={content} feedbackPreview={feedbackPreview} />
         <CamoAccent compact />
-        <About content={content} />
-        {content.events.enabled && <Events content={content} />}
+        <About content={content} feedbackPreview={feedbackPreview} />
+        {content.events.enabled && <Events content={content} feedbackPreview={feedbackPreview} />}
         <CamoAccent compact />
         <Booking content={content} />
       </main>
@@ -41,7 +42,7 @@ export function PublicSite({ content, contentStatus }) {
       <a className="chair-mobile-book" href={content.booking.url} target="_blank" rel="noreferrer">
         <span className="chair-mobile-book-copy">
           <span>{content.booking.label}</span>
-          <small>{content.services[0].price} · 35 min</small>
+          {!feedbackPreview && <small>{content.services[0].price} · 35 min</small>}
         </span>
         <span className="chair-mobile-book-mark" aria-hidden="true">
           <BrandMark content={content} decorative />
@@ -102,7 +103,7 @@ function SiteHeader({ content }) {
   )
 }
 
-function Hero({ content }) {
+function Hero({ content, feedbackPreview }) {
   return (
     <section className="chair-hero" aria-labelledby="chair-hero-heading">
       <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" style={imageFocusStyle(content.media.hero)} />
@@ -113,27 +114,35 @@ function Hero({ content }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
-        <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
-          <strong>{content.services[0].price}</strong>
-          <span>Haircut · {content.services[0].duration}</span>
-        </div>
+        {!feedbackPreview && (
+          <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
+            <strong>{content.services[0].price}</strong>
+            <span>Haircut · {content.services[0].duration}</span>
+          </div>
+        )}
         <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
           <span>{content.booking.label}</span>
         </a>
-        <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>
+        {!feedbackPreview && <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>}
       </div>
     </section>
   )
 }
 
-function Availability({ content }) {
+function Availability({ content, feedbackPreview }) {
   const faded = content.locations.fadedUniversity
   const lipscomb = content.locations.lipscomb
   return (
     <section className="chair-availability" aria-labelledby="chair-availability-heading">
       <header>
         <p className="chair-kicker">Locations & availability</p>
-        <h2 id="chair-availability-heading">Where JP cuts</h2>
+        <h2 id="chair-availability-heading">{feedbackPreview ? 'Where?' : 'Where JP cuts'}</h2>
+        {feedbackPreview && (
+          <div className="chair-availability-socials" aria-label="JP Cuts social media">
+            <p>Follow JP</p>
+            <SocialLinks content={content} label={null} />
+          </div>
+        )}
       </header>
       <div className="chair-location-grid">
         <article>
@@ -154,13 +163,12 @@ function Availability({ content }) {
   )
 }
 
-function Work({ content }) {
+function Work({ content, feedbackPreview }) {
   const work = content.media.gallery.slice(0, 3)
   return (
     <section className="chair-section chair-work" id="work">
       <header className="chair-section-heading">
-        <p className="chair-outline-label">{content.work.eyebrow}</p>
-        <h2><MultilineText text={content.work.heading} /></h2>
+        <PairedHeading first={content.work.eyebrow} second={content.work.heading} feedbackPreview={feedbackPreview} multiline />
       </header>
       {content.media.beforeAfter.enabled && (
         <BeforeAfterSlider before={content.media.beforeAfter.before} after={content.media.beforeAfter.after} heading={content.media.beforeAfter.heading} />
@@ -174,12 +182,11 @@ function Work({ content }) {
   )
 }
 
-function Services({ content }) {
+function Services({ content, feedbackPreview }) {
   return (
     <section className="chair-section chair-services" id="services">
       <header className="chair-section-heading">
-        <p className="chair-outline-label">{content.servicesSection.eyebrow}</p>
-        <h2><MultilineText text={content.servicesSection.heading} /></h2>
+        <PairedHeading first={content.servicesSection.eyebrow} second={content.servicesSection.heading} feedbackPreview={feedbackPreview} multiline />
       </header>
       <div className="chair-service-grid">
         {content.services.filter((service) => service.enabled).map((service) => (
@@ -195,12 +202,11 @@ function Services({ content }) {
   )
 }
 
-function About({ content }) {
+function About({ content, feedbackPreview }) {
   return (
     <section className="chair-section chair-about" id="about">
       <div className="chair-about-copy">
-        <p className="chair-outline-label">{content.story.heading}</p>
-        <h2>{content.story.subtitle}</h2>
+        <PairedHeading first={content.story.heading} second={content.story.subtitle} feedbackPreview={feedbackPreview} />
         <p className="chair-about-intro">{content.hero.intro}</p>
         <div className="chair-bio-copy">
           {String(content.story.body || '').split(/\n\s*\n/).filter(Boolean).map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
@@ -217,14 +223,13 @@ function About({ content }) {
   )
 }
 
-function Events({ content }) {
+function Events({ content, feedbackPreview }) {
   const weddingPhotos = content.media.gallery.slice(5, 8)
   const teamPhotos = content.media.gallery.slice(8, 11)
   return (
     <section className="chair-section chair-events" id="events">
       <div className="chair-events-copy">
-        <p className="chair-outline-label">{content.events.outlineHeading}</p>
-        <h2>{content.events.heading}</h2>
+        <PairedHeading first={content.events.outlineHeading} second={content.events.heading} feedbackPreview={feedbackPreview} />
         <p>{content.events.body}</p>
         <ContactAccordion label={content.events.actionLabel} />
       </div>
@@ -334,15 +339,21 @@ function SiteFooter({ content }) {
         <span className="chair-brand-region">{content.facts.mobile}</span>
       </div>
       <p>{content.locations.fadedUniversity.name} · {content.locations.lipscomb.name}</p>
-      <div className="chair-socials" aria-label="JP Cuts on social media">
-        {socialLinks.map(([key, label, Icon]) => content.contact[key] && (
-          <a key={key} href={content.contact[key]} target="_blank" rel="noreferrer" aria-label={label}>
-            <Icon size={24} weight="bold" aria-hidden="true" />
-          </a>
-        ))}
-      </div>
+      <SocialLinks content={content} />
       <small>© {new Date().getFullYear()} JP Cuts</small>
     </footer>
+  )
+}
+
+function SocialLinks({ content, label = 'JP Cuts on social media' }) {
+  return (
+    <div className="chair-socials" {...(label ? { 'aria-label': label } : {})}>
+      {socialLinks.map(([key, label, Icon]) => content.contact[key] && (
+        <a key={key} href={content.contact[key]} target="_blank" rel="noreferrer" aria-label={label}>
+          <Icon size={24} weight="bold" aria-hidden="true" />
+        </a>
+      ))}
+    </div>
   )
 }
 
@@ -413,4 +424,21 @@ function HeroHeadline({ text }) {
 
 function MultilineText({ text }) {
   return String(text || '').split(/\n+/).filter(Boolean).map((line, index) => <span key={`${line}-${index}`}>{line}{index === String(text || '').split(/\n+/).filter(Boolean).length - 1 ? '' : <br />}</span>)
+}
+
+function PairedHeading({ first, second, feedbackPreview, multiline = false }) {
+  if (feedbackPreview) {
+    return (
+      <>
+        <h2 className="chair-pair-primary">{first}</h2>
+        <p className="chair-pair-secondary">{multiline ? <MultilineText text={second} /> : second}</p>
+      </>
+    )
+  }
+  return (
+    <>
+      <p className="chair-outline-label">{first}</p>
+      <h2>{multiline ? <MultilineText text={second} /> : second}</h2>
+    </>
+  )
 }

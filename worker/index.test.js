@@ -362,6 +362,34 @@ test('configured production hosts expose only the public site, content, media, a
   assert.match(await spoofedHost.text(), /Private preview/)
 })
 
+test('flagged Cloudflare version previews expose the public site but keep admin private and fail closed elsewhere', async () => {
+  const previewHost = 'jp-feedback-numbered-preview-dev.example.workers.dev'
+  const env = authenticatedEnv(defaultContent, { session: false })
+  env.JPCUUTS_VERSION_PREVIEW = '1'
+
+  const homepage = await handleRequest(new Request(`https://${previewHost}/`), env)
+  assert.equal(homepage.status, 200)
+  assert.equal(await homepage.text(), 'site')
+
+  const content = await handleRequest(new Request(`https://${previewHost}/api/content`), env)
+  assert.equal(content.status, 200)
+  assert.equal((await content.json()).content.hero.headline, defaultContent.hero.headline)
+
+  const admin = await handleRequest(new Request(`https://${previewHost}/admin/`), env)
+  assert.equal(admin.status, 200)
+  assert.match(await admin.text(), /Private preview/)
+
+  const adminApi = await handleRequest(new Request(`https://${previewHost}/api/admin/content`), env)
+  assert.equal(adminApi.status, 401)
+
+  const disabled = authenticatedEnv(defaultContent, { session: false })
+  const disabledHomepage = await handleRequest(new Request(`https://${previewHost}/`), disabled)
+  assert.match(await disabledHomepage.text(), /Private preview/)
+
+  const spoofed = await handleRequest(new Request(`https://${previewHost}.evil/`), env)
+  assert.match(await spoofed.text(), /Private preview/)
+})
+
 test('login exposes an emailed forgot-password flow without account disclosure', async () => {
   const login = await handleRequest(new Request('https://numbered.test/login/'), untouchedBindings().env)
   const loginHtml = await login.text()

@@ -7,6 +7,11 @@ import { Editor } from './Editor'
 
 function App() {
   const isEditor = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
+  const hostname = window.location.hostname.toLowerCase()
+  const localFeedbackPreview = ['127.0.0.1', 'localhost'].includes(hostname)
+    && new URLSearchParams(window.location.search).get('jp-feedback') === '1'
+  const versionFeedbackPreview = hostname.endsWith('.workers.dev')
+  const presentation = hostname === 'dev.jpcuuts.com' || versionFeedbackPreview || localFeedbackPreview ? 'jp-feedback' : 'current'
   const [content, setContent] = useState(defaultContent)
   const [contentStatus, setContentStatus] = useState('loading')
 
@@ -39,7 +44,7 @@ function App() {
   }, [isEditor])
 
   if (isEditor) return <Editor defaults={defaultContent} />
-  return <PublicSite content={content} contentStatus={contentStatus} />
+  return <PublicSite content={content} contentStatus={contentStatus} presentation={presentation} />
 }
 
 export default App

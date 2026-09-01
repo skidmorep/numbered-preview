@@ -1,6 +1,7 @@
 name = "numbered-preview-dev"
 main = "worker/index.js"
 compatibility_date = "2026-01-28"
+preview_urls = true
 routes = [
   { pattern = "dev.jpcuuts.com", custom_domain = true },
   { pattern = "jpcuuts.com", custom_domain = true },
@@ -20,6 +21,7 @@ PUBLIC_SITE_HOSTS = "jpcuuts.com,www.jpcuuts.com"
 RESET_EMAIL_FROM = "JP Cuts <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_FROM = "JP Cuts website <jpcuuts@parabolos.com>"
 CONTACT_EMAIL_TO = "jp@jpcuuts.com"
+JPCUUTS_VERSION_PREVIEW = "1"
 
 [[d1_databases]]
 binding = "DB"

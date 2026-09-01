@@ -95,6 +95,8 @@ export async function handleRequest(request, env, context) {
 
 function isPublicSiteRequest(request, env) {
   const hostname = new URL(request.url).hostname.toLowerCase().replace(/\.$/, '')
+  const versionPreviewHost = env.JPCUUTS_VERSION_PREVIEW === '1' && hostname.endsWith('.workers.dev')
+  if (versionPreviewHost) return true
   return String(env.PUBLIC_SITE_HOSTS || '')
     .split(',')
     .map((host) => host.trim().toLowerCase().replace(/\.$/, ''))
