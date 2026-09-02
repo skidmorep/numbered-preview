@@ -228,11 +228,10 @@
 }
 
 .chair-hero-offer strong {
-  font-family: var(--display);
   font-size: .72rem;
-  font-weight: 400;
-  letter-spacing: -.035em;
-  line-height: .7;
+  font-weight: 950;
+  letter-spacing: .11em;
+  line-height: 1.25;
 }
 
 .chair-hero-offer span {

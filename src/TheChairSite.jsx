@@ -26,7 +26,7 @@ export function PublicSite({ content, contentStatus, presentation = 'current' })
       )}
       <SiteHeader content={content} />
       <main>
-        <Hero content={content} feedbackPreview={feedbackPreview} />
+        <Hero content={content} />
         <Availability content={content} feedbackPreview={feedbackPreview} />
         <CamoAccent />
         <Work content={content} feedbackPreview={feedbackPreview} />
@@ -103,7 +103,7 @@ function SiteHeader({ content }) {
   )
 }
 
-function Hero({ content, feedbackPreview }) {
+function Hero({ content }) {
   return (
     <section className="chair-hero" aria-labelledby="chair-hero-heading">
       <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" style={imageFocusStyle(content.media.hero)} />
@@ -114,16 +114,14 @@ function Hero({ content, feedbackPreview }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
-        {!feedbackPreview && (
-          <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
-            <strong>{content.services[0].price}</strong>
-            <span>Haircut · {content.services[0].duration}</span>
-          </div>
-        )}
+        <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
+          <strong>{content.services[0].price}</strong>
+          <span>Haircut · {content.services[0].duration}</span>
+        </div>
         <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
           <span>{content.booking.label}</span>
         </a>
-        {!feedbackPreview && <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>}
+        <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>
       </div>
     </section>
   )

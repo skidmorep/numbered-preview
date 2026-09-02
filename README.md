@@ -6,6 +6,16 @@ Private preview: <https://dev.jpcuuts.com/>
 
 Editor: <https://dev.jpcuuts.com/admin/>
 
+Production: <https://jpcuuts.com/>
+
+## Release boundary
+
+- `dev.jpcuuts.com` runs on the isolated review Worker configured by `wrangler.dev.toml`.
+- `jpcuuts.com` and `www.jpcuuts.com` run on the production Worker configured by `wrangler.toml`.
+- All design and content changes deploy to dev first with `npm run cf:deploy:dev`.
+- Production deploys only after explicit approval with `npm run cf:deploy:production`.
+- There is intentionally no ambiguous `cf:deploy` command.
+
 ## Architecture
 
 - React and Vite render the public site and editor.
@@ -75,5 +85,5 @@ Password reset and contact delivery use the existing `RESEND_API_KEY` Worker sec
 ```sh
 npm run cf:migrate:remote
 wrangler secret put RESEND_API_KEY
-npm run cf:deploy
+npm run cf:deploy:dev
 ```
