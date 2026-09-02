@@ -229,7 +229,7 @@
 
 .chair-hero-offer strong {
   font-family: var(--display);
-  font-size: clamp(5.2rem, 27vw, 8rem);
+  font-size: .72rem;
   font-weight: 400;
   letter-spacing: -.035em;
   line-height: .7;
