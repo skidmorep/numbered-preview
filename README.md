@@ -10,11 +10,12 @@ Production: <https://jpcuuts.com/>
 
 ## Release boundary
 
-- `dev.jpcuuts.com` runs on the isolated review Worker configured by `wrangler.dev.toml`.
-- `jpcuuts.com` and `www.jpcuuts.com` run on the production Worker configured by `wrangler.toml`.
+- `dev.jpcuuts.com` runs on the isolated review Worker configured by the default `wrangler.toml`.
+- `jpcuuts.com` and `www.jpcuuts.com` run on the production Worker configured by `wrangler.production.toml`.
 - All design and content changes deploy to dev first with `npm run cf:deploy:dev`.
 - Production deploys only after explicit approval with `npm run cf:deploy:production`.
 - There is intentionally no ambiguous `cf:deploy` command.
+- A bare `wrangler deploy` targets dev, never production.
 
 ## Architecture
 
