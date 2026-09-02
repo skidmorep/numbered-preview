@@ -45,15 +45,8 @@ async function inspect(page) {
       heroText: hero?.textContent.replace(/\s+/g, ' ').trim(),
       heroOfferCount: hero?.querySelectorAll('.chair-hero-offer').length,
       heroAddonCount: hero?.querySelectorAll('.chair-hero-addon').length,
-      heroOfferTypographyMatches: (() => {
-        const price = hero?.querySelector('.chair-hero-offer strong')
-        const detail = hero?.querySelector('.chair-hero-offer span')
-        if (!price || !detail) return false
-        const priceStyle = getComputedStyle(price)
-        const detailStyle = getComputedStyle(detail)
-        return ['fontFamily', 'fontSize', 'fontWeight', 'letterSpacing', 'lineHeight']
-          .every((property) => priceStyle[property] === detailStyle[property])
-      })(),
+      heroOfferLine: hero?.querySelector('.chair-hero-offer')?.textContent.trim(),
+      heroOfferChildCount: hero?.querySelector('.chair-hero-offer')?.children.length,
       heroLogoVisible: (() => {
         const box = hero?.querySelector('.chair-hero-brand img')?.getBoundingClientRect()
         return Boolean(box && box.width > 0 && box.height > 0 && box.top >= 0 && box.bottom <= innerHeight)
@@ -126,10 +119,11 @@ async function main() {
     || !metrics.heroLogoVisible
     || metrics.heroOfferCount !== 1
     || metrics.heroAddonCount !== 1
-    || !metrics.heroOfferTypographyMatches
+    || metrics.heroOfferLine !== '$35 Haircut · 35 minutes'
+    || metrics.heroOfferChildCount !== 1
     || !metrics.heroText.includes('PROFESSIONAL BARBER')
     || !metrics.heroText.includes('Create. Connect. Collaborate.')
-    || !metrics.heroText.includes('$35Haircut · 35 minutes')
+    || !metrics.heroText.includes('$35 Haircut · 35 minutes')
     || metrics.heroBookText !== 'BOOK NOW'
     || metrics.heroBookHref !== 'https://calendly.com/jpcuts/30mins'
     || metrics.socialCount !== 4

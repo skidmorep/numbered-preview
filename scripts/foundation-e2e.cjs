@@ -90,7 +90,7 @@ async function main() {
     if (publicState.hasVisibleEmail) throw new Error('Public email or mailto link is exposed')
     if (!publicState.bodyText.includes('Middle Tennessee') || /Nashville|Booksy|JP Cutz/i.test(publicState.bodyText)) throw new Error('Public location or identity copy is stale')
     if ((publicState.bodyText.match(/\bnumbered\b/gi) || []).length !== 1) throw new Error('Numbered language appears outside the single Matthew 10:30 quotation')
-    if (!publicState.bodyText.includes('$35Haircut · 35 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
+    if (!publicState.bodyText.includes('$35 Haircut · 35 minutes') || !publicState.bodyText.includes('Shave or beard trim+$5')) throw new Error('The approved service pricing is not rendered exactly')
     if (!publicState.bodyText.includes('113 Front Street, Smyrna, TN 37167') || !publicState.bodyText.includes('Tuesday–Friday, 9:00am–3:00pm; Saturday, 8:00am–2:00pm')) throw new Error('The verified Faded University location and JP school hours are missing')
     if (!publicState.bodyText.includes('majority of his business')) throw new Error('JP’s Lipscomb appointment statement is missing')
     if (!publicState.verse?.includes('Matthew 10:30')) throw new Error('Verse detail is missing')

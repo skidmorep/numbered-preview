@@ -231,7 +231,7 @@ async function main() {
     item.heroBookingHref !== 'https://calendly.com/jpcuts/30mins' ||
     item.heroBookingHeight < 52 ||
     item.heroBookingText !== 'Book a cut' ||
-    !item.heroOfferText?.includes('$35Haircut · 35 minutes') ||
+    item.heroOfferText !== '$35 Haircut · 35 minutes' ||
     !item.heroOfferClear ||
     !item.heroAddonText?.includes('Optional shave or beard trim · +$5') ||
     !item.fadedLocationText?.includes('113 Front Street, Smyrna, TN 37167') ||

@@ -114,9 +114,8 @@ function Hero({ content }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
-        <div className="chair-hero-offer" aria-label={`Haircut, ${content.services[0].price}, ${content.services[0].duration}`}>
-          <strong>{content.services[0].price}</strong>
-          <span>Haircut · {content.services[0].duration}</span>
+        <div className="chair-hero-offer" aria-label={`${content.services[0].price} haircut, ${content.services[0].duration}`}>
+          <span>{content.services[0].price} Haircut · {content.services[0].duration}</span>
         </div>
         <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
           <span>{content.booking.label}</span>
