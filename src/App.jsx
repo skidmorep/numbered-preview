@@ -11,7 +11,8 @@ function App() {
   const localFeedbackPreview = ['127.0.0.1', 'localhost'].includes(hostname)
     && new URLSearchParams(window.location.search).get('jp-feedback') === '1'
   const versionFeedbackPreview = hostname.endsWith('.workers.dev')
-  const presentation = hostname === 'dev.jpcuuts.com' || versionFeedbackPreview || localFeedbackPreview ? 'jp-feedback' : 'current'
+  const approvedPresentationHost = ['dev.jpcuuts.com', 'jpcuuts.com', 'www.jpcuuts.com'].includes(hostname)
+  const presentation = approvedPresentationHost || versionFeedbackPreview || localFeedbackPreview ? 'jp-feedback' : 'current'
   const [content, setContent] = useState(defaultContent)
   const [contentStatus, setContentStatus] = useState('loading')
 
