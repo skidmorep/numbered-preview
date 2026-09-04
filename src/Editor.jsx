@@ -195,7 +195,7 @@ export function Editor({ defaults }) {
             <p className="editor-help">When published, the card opens this exact Reel on instagram.com. When off, the Reel stays selected here but is absent from the public layout.</p>
           </EditorSection>
 
-          <EditorSection title="Photos" description="Replace the hero, JP portrait, before/after pair, or gallery with approved JP Cuts images.">
+          <EditorSection title="Photos" description="Replace the homepage hero, Events banner, JP portrait, before/after pair, or gallery with approved JP Cuts images.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
             <MediaFocusManager content={content} update={update} />
             <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
@@ -277,6 +277,7 @@ function MediaUploader({ content, update, setStatus }) {
   const [file, setFile] = useState(null)
   const targets = useMemo(() => [
     ['hero', 'Hero image'],
+    ['events-hero', 'Events banner'],
     ['portrait', 'JP portrait'],
     ['before', 'Before image'],
     ['after', 'After image'],
@@ -296,6 +297,7 @@ function MediaUploader({ content, update, setStatus }) {
       const payload = await api('/api/admin/media', { method: 'POST', body: form })
       const asset = payload.asset
       if (target === 'hero') update('media.hero', asset)
+      else if (target === 'events-hero') update('media.eventsHero', asset)
       else if (target === 'portrait') update('media.portrait', asset)
       else if (target === 'before') update('media.beforeAfter.before', asset)
       else if (target === 'after') update('media.beforeAfter.after', asset)
@@ -313,6 +315,7 @@ function MediaUploader({ content, update, setStatus }) {
 function mediaEntries(content) {
   return [
     { id: 'hero', label: 'Hero', path: 'media.hero', asset: content.media.hero },
+    { id: 'events-hero', label: 'Events banner', path: 'media.eventsHero', asset: content.media.eventsHero },
     { id: 'portrait', label: 'JP portrait', path: 'media.portrait', asset: content.media.portrait },
     { id: 'before', label: 'Before', path: 'media.beforeAfter.before', asset: content.media.beforeAfter.before },
     { id: 'after', label: 'After', path: 'media.beforeAfter.after', asset: content.media.beforeAfter.after },

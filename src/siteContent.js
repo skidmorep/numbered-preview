@@ -104,6 +104,7 @@ export const defaultContent = {
   },
   media: {
     hero: media('jp-chair-hero', 'JP cutting a client’s hair in the barber chair', { x: 53, y: 43 }),
+    eventsHero: media('jp-event-setup-hero', 'JP cutting a young client at a JP Cuts group event setup with chairs, lights, and the JP Cuts logo projected on the wall', { x: 63, y: 57 }),
     portrait: media('jp-chair-portrait', 'JP smiling and holding clippers at Faded University', { x: 50, y: 18 }),
     gallery: [
       media('jp-chair-work-01', 'A client with clean waves and sharp lines after a cut by JP'),
@@ -284,6 +285,7 @@ function normalizeMediaFocus(content) {
     media: {
       ...mediaContent,
       hero: withFocus(mediaContent.hero, defaultContent.media.hero),
+      eventsHero: withFocus(mediaContent.eventsHero, defaultContent.media.eventsHero),
       portrait: withFocus(mediaContent.portrait, defaultContent.media.portrait),
       gallery: Array.isArray(mediaContent.gallery)
         ? mediaContent.gallery.map((asset, index) => withFocus(asset, defaultContent.media.gallery[index]))

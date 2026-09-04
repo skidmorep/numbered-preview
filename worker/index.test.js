@@ -29,6 +29,8 @@ test('bundled content passes the Worker validation contract', () => {
   assert.match(defaultContent.facts.mobile, /Middle Tennessee/)
   assert.equal(defaultContent.media.beforeAfter.enabled, true)
   assert.deepEqual(defaultContent.media.hero.focus, { x: 53, y: 43 })
+  assert.equal(defaultContent.media.eventsHero.url, '/media/defaults/jp-event-setup-hero.webp')
+  assert.deepEqual(defaultContent.media.eventsHero.focus, { x: 63, y: 57 })
   assert.deepEqual(imageFocusStyle(defaultContent.media.hero), { objectPosition: '53% 43%' })
 })
 
@@ -132,6 +134,7 @@ test('current owner media gains safe focus defaults without replacing URLs, alt 
   assert.equal(merged.media.hero.url, stored.media.hero.url)
   assert.equal(merged.media.hero.alt, 'Owner hero')
   assert.deepEqual(merged.media.hero.focus, defaultContent.media.hero.focus)
+  assert.deepEqual(merged.media.eventsHero, defaultContent.media.eventsHero)
   assert.deepEqual(merged.media.gallery.map((asset) => asset.url), stored.media.gallery.map((asset) => asset.url))
   assert.deepEqual(merged.media.gallery[0].focus, defaultContent.media.gallery[0].focus)
   assert.deepEqual(merged.media.gallery[2].focus, { x: 19, y: 81 })

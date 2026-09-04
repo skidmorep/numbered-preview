@@ -732,6 +732,7 @@ function validateContent(content) {
   if (beforeAfter?.enabled) plainText(beforeAfter.heading, 'Before/after heading', 120)
   const media = [
     readPath(content, 'media.hero'),
+    readPath(content, 'media.eventsHero'),
     readPath(content, 'media.portrait'),
     beforeAfter?.before,
     beforeAfter?.after,

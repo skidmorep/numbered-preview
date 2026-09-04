@@ -23,9 +23,10 @@ async function inspect(page) {
   return page.evaluate(() => {
     const root = document.querySelector('.chair-site')
     const hero = document.querySelector('.chair-hero')
+    const eventsHero = document.querySelector('.chair-events-hero')
     const social = document.querySelector('.chair-availability-socials')
     const availability = document.querySelector('.chair-availability')
-    const pairs = [...document.querySelectorAll('.chair-section-heading, .chair-about-copy, .chair-events-copy')].map((node) => {
+    const pairs = [...document.querySelectorAll('.chair-section-heading, .chair-about-copy, .chair-events-heading')].map((node) => {
       const first = node.querySelector('.chair-pair-primary')
       const second = node.querySelector('.chair-pair-secondary')
       return {
@@ -74,6 +75,21 @@ async function inspect(page) {
         return Boolean(node && getComputedStyle(node).display !== 'none')
       })(),
       servicePriceVisible: [...document.querySelectorAll('.chair-service strong')].some((node) => node.textContent.trim() === '$35'),
+      eventsHero: (() => {
+        const image = eventsHero?.querySelector('img')
+        const imageBox = image?.getBoundingClientRect()
+        const heroBox = eventsHero?.getBoundingClientRect()
+        const headingBox = eventsHero?.querySelector('.chair-events-heading')?.getBoundingClientRect()
+        return image && imageBox && heroBox && headingBox ? {
+          count: eventsHero.querySelectorAll(':scope > img').length,
+          src: image.getAttribute('src'),
+          naturalWidth: image.naturalWidth,
+          naturalHeight: image.naturalHeight,
+          objectPosition: getComputedStyle(image).objectPosition,
+          headingInside: headingBox.left >= heroBox.left - 1 && headingBox.right <= heroBox.right + 1
+            && headingBox.top >= heroBox.top - 1 && headingBox.bottom <= heroBox.bottom + 1,
+        } : null
+      })(),
       pairs,
       imageFailures: [...document.images].filter((image) => !image.complete || image.naturalWidth === 0).map((image) => image.src),
     }
@@ -99,6 +115,7 @@ async function main() {
       const response = await page.goto(url.toString(), { waitUntil: 'networkidle' })
       await page.locator('.chair-hero > img').waitFor({ state: 'visible' })
       await page.evaluate(() => document.querySelectorAll('img').forEach((image) => { image.loading = 'eager' }))
+      await page.locator('.chair-events-hero > img').evaluate((image) => image.decode())
       await page.waitForTimeout(350)
       const metrics = await inspect(page)
       const screenshot = path.join(outputDir, `${viewport.name}-full.png`)
@@ -138,6 +155,12 @@ async function main() {
     || metrics.mobileBarVisible
     || (metrics.width >= 960 && (metrics.headerBrandVisible || metrics.headerBookVisible))
     || !metrics.servicePriceVisible
+    || metrics.eventsHero?.count !== 1
+    || metrics.eventsHero?.src !== '/media/defaults/jp-event-setup-hero.webp'
+    || metrics.eventsHero?.naturalWidth !== 2400
+    || metrics.eventsHero?.naturalHeight !== 1800
+    || metrics.eventsHero?.objectPosition !== '63% 57%'
+    || !metrics.eventsHero?.headingInside
     || metrics.pairs.length !== 4
     || metrics.pairs.some((pair) => pair.firstColor === 'rgba(0, 0, 0, 0)' || Number.parseFloat(pair.firstStroke) !== 0 || pair.secondColorAlpha <= 0 || pair.secondColorAlpha > .2 || Number.parseFloat(pair.secondStroke) < 1)
     || metrics.imageFailures.length

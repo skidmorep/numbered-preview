@@ -16,6 +16,12 @@
       "sha256": "5388d998004fefff24b2e741f2d2c869fb0a85d4a513b4a8d2d6d6e357bee92b"
     },
     {
+      "file": "public/media/defaults/jp-event-setup-hero.webp",
+      "role": "events section hero",
+      "source": "JP-supplied IMG_1654.jpg via paul skidmore in Discord #jpcuuts on 2026-09-04; source sha256 4e6d8a6777c58c22078d5f18dbd4a13c7d01a879a19c1db6cff58ecd7daca569",
+      "sha256": "199a5d85790045a0da3bd6b0fab1d7b5541575bfd3fd89ea7c472d5f4184f036"
+    },
+    {
       "file": "public/media/defaults/jp-chair-before.webp",
       "role": "before",
       "source": "photos/before after/Photo Aug 29 2026, 1 19 26 PM.jpg",

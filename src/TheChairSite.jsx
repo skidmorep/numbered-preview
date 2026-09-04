@@ -225,8 +225,14 @@ function Events({ content, feedbackPreview }) {
   const teamPhotos = content.media.gallery.slice(8, 11)
   return (
     <section className="chair-section chair-events" id="events">
+      <div className="chair-events-hero">
+        <img src={content.media.eventsHero.url} alt={content.media.eventsHero.alt} loading="lazy" style={imageFocusStyle(content.media.eventsHero)} />
+        <div className="chair-events-hero-shade" aria-hidden="true" />
+        <div className="chair-events-heading">
+          <PairedHeading first={content.events.outlineHeading} second={content.events.heading} feedbackPreview={feedbackPreview} />
+        </div>
+      </div>
       <div className="chair-events-copy">
-        <PairedHeading first={content.events.outlineHeading} second={content.events.heading} feedbackPreview={feedbackPreview} />
         <p>{content.events.body}</p>
         <ContactAccordion label={content.events.actionLabel} />
       </div>
