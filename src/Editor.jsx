@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { gallerySections, gallerySlotLabel, moveGalleryAsset } from './mediaSections'
 import { imageFocusStyle, mergeContent, officialLogoUrl } from './siteContent'
 
 async function api(path, options = {}) {
@@ -63,6 +64,17 @@ export function Editor({ defaults }) {
       let cursor = next
       parts.slice(0, -1).forEach((part) => { cursor = cursor[part] })
       cursor[parts.at(-1)] = value
+      return next
+    })
+    setDirty(true)
+  }
+
+  const reorderGallery = (sectionId, fromPosition, toPosition) => {
+    setContent((current) => {
+      const reordered = moveGalleryAsset(current.media.gallery, sectionId, fromPosition, toPosition)
+      if (reordered === current.media.gallery) return current
+      const next = structuredClone(current)
+      next.media.gallery = reordered
       return next
     })
     setDirty(true)
@@ -195,9 +207,9 @@ export function Editor({ defaults }) {
             <p className="editor-help">When published, the card opens this exact Reel on instagram.com. When off, the Reel stays selected here but is absent from the public layout.</p>
           </EditorSection>
 
-          <EditorSection title="Photos" description="Replace the homepage hero, Events banner, JP portrait, before/after pair, or gallery with approved JP Cuts images.">
+          <EditorSection title="Photos" description="Manage photos by the section and frame shape they use on the site. Reorder photos inside a section without re-uploading them.">
             <MediaUploader content={content} update={update} setStatus={setStatus} />
-            <MediaFocusManager content={content} update={update} />
+            <MediaFocusManager content={content} update={update} reorderGallery={reorderGallery} />
             <label className="check-field"><input type="checkbox" checked={content.media.beforeAfter.enabled} onChange={(event) => update('media.beforeAfter.enabled', event.target.checked)} /> Show before/after slider</label>
             <Field label="Before/after heading" value={content.media.beforeAfter.heading} onChange={(value) => update('media.beforeAfter.heading', value)} maxLength={120} />
           </EditorSection>
@@ -281,7 +293,7 @@ function MediaUploader({ content, update, setStatus }) {
     ['portrait', 'JP portrait'],
     ['before', 'Before image'],
     ['after', 'After image'],
-    ...content.media.gallery.map((_, index) => [`gallery-${index}`, `Gallery ${index + 1}`]),
+    ...content.media.gallery.map((_, index) => [`gallery-${index}`, gallerySlotLabel(index)]),
   ], [content.media.gallery])
 
   const upload = async (event) => {
@@ -312,32 +324,118 @@ function MediaUploader({ content, update, setStatus }) {
   return <form className="media-uploader" onSubmit={upload}><label className="field"><span>Replace</span><select value={target} onChange={(event) => setTarget(event.target.value)}>{targets.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="field"><span>File</span><input type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><Field label="Image alt text" value={alt} onChange={setAlt} maxLength={180} /><button type="submit">Upload</button><p>Images: 6 MB max. JPEG, PNG, WebP, or AVIF.</p></form>
 }
 
-function mediaEntries(content) {
+function fixedMediaEntries(content) {
   return [
-    { id: 'hero', label: 'Hero', path: 'media.hero', asset: content.media.hero },
-    { id: 'events-hero', label: 'Events banner', path: 'media.eventsHero', asset: content.media.eventsHero },
-    { id: 'portrait', label: 'JP portrait', path: 'media.portrait', asset: content.media.portrait },
-    { id: 'before', label: 'Before', path: 'media.beforeAfter.before', asset: content.media.beforeAfter.before },
-    { id: 'after', label: 'After', path: 'media.beforeAfter.after', asset: content.media.beforeAfter.after },
-    ...content.media.gallery.map((asset, index) => ({ id: `gallery-${index}`, label: `Gallery ${index + 1}`, path: `media.gallery.${index}`, asset })),
+    { id: 'hero', label: 'Homepage hero', shape: 'Wide', path: 'media.hero', asset: content.media.hero },
+    { id: 'events-hero', label: 'Events banner', shape: 'Wide', path: 'media.eventsHero', asset: content.media.eventsHero },
+    { id: 'portrait', label: 'JP portrait', shape: 'Portrait', path: 'media.portrait', asset: content.media.portrait },
+    { id: 'before', label: 'Before photo', shape: 'Portrait', path: 'media.beforeAfter.before', asset: content.media.beforeAfter.before },
+    { id: 'after', label: 'After photo', shape: 'Portrait', path: 'media.beforeAfter.after', asset: content.media.beforeAfter.after },
   ]
 }
 
-function MediaFocusManager({ content, update }) {
-  const entries = mediaEntries(content)
-  const [selectedId, setSelectedId] = useState('hero')
-  const selected = entries.find((entry) => entry.id === selectedId) || entries[0]
+function galleryEntries(content, section) {
+  return section.indices
+    .filter((index) => content.media.gallery[index])
+    .map((index, position) => ({
+      id: `gallery-${index}`,
+      label: `${section.heading} photo ${position + 1}`,
+      shape: section.shapes[position],
+      path: `media.gallery.${index}`,
+      asset: content.media.gallery[index],
+      position,
+    }))
+}
+
+function MediaFocusManager({ content, update, reorderGallery }) {
+  const drag = useRef(null)
+  const fixedEntries = fixedMediaEntries(content)
+  const groupedEntries = gallerySections.map((section) => ({ section, entries: galleryEntries(content, section) }))
+  const entries = [...fixedEntries, ...groupedEntries.flatMap((group) => group.entries)]
+  const [selectedAssetUrl, setSelectedAssetUrl] = useState(content.media.hero?.url)
+  const [draggedAssetUrl, setDraggedAssetUrl] = useState('')
+  const [announcement, setAnnouncement] = useState('')
+  const selected = entries.find((entry) => entry.asset?.url === selectedAssetUrl) || entries[0]
+
+  const move = (section, fromPosition, toPosition) => {
+    if (fromPosition === toPosition) return
+    reorderGallery(section.id, fromPosition, toPosition)
+    setAnnouncement(`Moved ${section.heading} photo from position ${fromPosition + 1} to position ${toPosition + 1}.`)
+  }
+
+  const startDrag = (event, section, position, asset) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    drag.current = { pointerId: event.pointerId, section, position }
+    setDraggedAssetUrl(asset?.url || `${section.id}-${position}`)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+
+  const continueDrag = (event) => {
+    if (drag.current?.pointerId !== event.pointerId) return
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-media-position]')
+    const toPosition = Number(target?.dataset.mediaPosition)
+    if (target?.dataset.mediaSection !== drag.current.section.id || !Number.isInteger(toPosition) || toPosition === drag.current.position) return
+    move(drag.current.section, drag.current.position, toPosition)
+    drag.current.position = toPosition
+  }
+
+  const endDrag = (event) => {
+    if (drag.current?.pointerId !== event.pointerId) return
+    drag.current = null
+    setDraggedAssetUrl('')
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
 
   return <div className="media-focus-manager">
-    <div className="media-preview-grid">
-      {entries.map((entry) => <MediaPreview key={entry.id} {...entry} selected={entry.id === selected.id} onEdit={() => setSelectedId(entry.id)} />)}
-    </div>
-    <FocusPointEditor label={selected.label} path={selected.path} asset={selected.asset} update={update} />
+    <p className="media-instructions">Drag a photo to a new position inside its section. The frame badge shows the crop it will receive. Use Move earlier or Move later when you want exact control.</p>
+    <MediaGroup heading="Site essentials" description="These photos have one fixed job and do not change order.">
+      {fixedEntries.map((entry) => <MediaPreview key={entry.id} {...entry} selected={entry.asset?.url === selected.asset?.url} onEdit={() => setSelectedAssetUrl(entry.asset?.url)} />)}
+    </MediaGroup>
+    {groupedEntries.map(({ section, entries: sectionEntries }) => <MediaGroup key={section.id} heading={section.heading} description={section.description} reorderable={section.reorderable}>
+      {sectionEntries.map((entry) => <MediaPreview
+        key={entry.asset?.url || entry.id}
+        {...entry}
+        section={section}
+        selected={entry.asset?.url === selected.asset?.url}
+        dragging={entry.asset?.url === draggedAssetUrl}
+        onEdit={() => setSelectedAssetUrl(entry.asset?.url)}
+        onMoveEarlier={() => move(section, entry.position, entry.position - 1)}
+        onMoveLater={() => move(section, entry.position, entry.position + 1)}
+        onPointerDown={(event) => startDrag(event, section, entry.position, entry.asset)}
+        onPointerMove={continueDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        canMoveEarlier={section.reorderable && entry.position > 0}
+        canMoveLater={section.reorderable && entry.position < sectionEntries.length - 1}
+      />)}
+    </MediaGroup>)}
+    <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
+    <FocusPointEditor label={`${selected.label} · ${selected.shape}`} path={selected.path} asset={selected.asset} update={update} />
   </div>
 }
 
-function MediaPreview({ label, asset, selected, onEdit }) {
-  return <figure className={`media-preview ${selected ? 'is-selected' : ''}`}>{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" style={imageFocusStyle(asset)} />}<figcaption><b>{label}</b><span>{asset?.alt || 'No alt text'}</span><button type="button" aria-pressed={selected} onClick={onEdit}>{selected ? 'Adjusting visible area' : 'Adjust visible area'}</button></figcaption></figure>
+function MediaGroup({ heading, description, reorderable = false, children }) {
+  return <section className="media-group"><header><div><h3>{heading}</h3><p>{description}</p></div>{reorderable && <span>Reorder within this section</span>}</header><div className="media-preview-grid">{children}</div></section>
+}
+
+function MediaPreview({ label, shape, asset, section, position, selected, dragging, onEdit, onMoveEarlier, onMoveLater, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, canMoveEarlier, canMoveLater }) {
+  const reorderable = Boolean(section?.reorderable)
+  return <figure
+    className={`media-preview frame-${shape.toLowerCase().replaceAll(' ', '-')} ${selected ? 'is-selected' : ''} ${dragging ? 'is-dragging' : ''}`}
+    data-media-section={section?.id}
+    data-media-position={position}
+  >
+    <div className="media-preview-image">{asset?.type === 'video' ? <video src={asset.url} preload="metadata" /> : <img src={asset?.url} alt="" loading="lazy" style={imageFocusStyle(asset)} />}<span className="media-frame-badge">{shape}</span></div>
+    <figcaption><b>{label}</b><span title={asset?.alt || 'No alt text'}>{asset?.alt || 'No alt text'}</span>
+      {reorderable && <div className="media-reorder-actions">
+        <button type="button" className="drag-handle" aria-label={`Drag ${label} to reorder`} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>Drag</button>
+        <button type="button" onClick={onMoveEarlier} disabled={!canMoveEarlier}>Move earlier</button>
+        <button type="button" onClick={onMoveLater} disabled={!canMoveLater}>Move later</button>
+      </div>}
+      <button type="button" className="focus-button" aria-pressed={selected} onClick={onEdit}>{selected ? 'Adjusting visible area' : 'Adjust visible area'}</button>
+    </figcaption>
+  </figure>
 }
 
 function FocusPointEditor({ label, path, asset, update }) {
