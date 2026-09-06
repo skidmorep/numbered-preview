@@ -10,6 +10,7 @@
     "test": "node --test worker/*.test.js scripts/*.test.cjs",
     "test:foundation": "node scripts/foundation-e2e.cjs",
     "test:chair": "node scripts/chair-visual-check.cjs",
+    "test:before-after-desktop": "node scripts/before-after-desktop-check.cjs",
     "test:jp-feedback": "node scripts/jp-feedback-check.cjs",
     "test:jp-isolation": "node scripts/jp-isolation-check.cjs",
     "cf:dev": "npm run build && wrangler dev",
