@@ -26,7 +26,8 @@ export function PublicSite({ content, contentStatus, presentation = 'current' })
       )}
       <SiteHeader content={content} />
       <main>
-        <Hero content={content} />
+        <Hero content={content} feedbackPreview={feedbackPreview} />
+        {feedbackPreview && <SocialStrip content={content} />}
         <Availability content={content} feedbackPreview={feedbackPreview} />
         <CamoAccent />
         <Work content={content} feedbackPreview={feedbackPreview} />
@@ -103,7 +104,7 @@ function SiteHeader({ content }) {
   )
 }
 
-function Hero({ content }) {
+function Hero({ content, feedbackPreview }) {
   return (
     <section className="chair-hero" aria-labelledby="chair-hero-heading">
       <img src={content.media.hero.url} alt={content.media.hero.alt} fetchPriority="high" style={imageFocusStyle(content.media.hero)} />
@@ -114,14 +115,25 @@ function Hero({ content }) {
       <div className="chair-hero-copy">
         <p className="chair-kicker">{content.hero.eyebrow}</p>
         <h1 id="chair-hero-heading"><HeroHeadline text={content.hero.headline} /></h1>
-        <div className="chair-hero-offer" aria-label={`${content.services[0].price} haircut, ${content.services[0].duration}`}>
-          <span>{content.services[0].price} Haircut · {content.services[0].duration}</span>
-        </div>
+        {!feedbackPreview && (
+          <div className="chair-hero-offer" aria-label={`${content.services[0].price} haircut, ${content.services[0].duration}`}>
+            <span>{content.services[0].price} Haircut · {content.services[0].duration}</span>
+          </div>
+        )}
         <a className="chair-hero-book" href={content.booking.url} target="_blank" rel="noreferrer">
           <span>{content.booking.label}</span>
         </a>
-        <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>
+        {!feedbackPreview && <p className="chair-hero-addon">Optional {content.services[1].name.toLowerCase()} · {content.services[1].price}</p>}
       </div>
+    </section>
+  )
+}
+
+function SocialStrip({ content }) {
+  return (
+    <section className="chair-social-strip" aria-label="JP Cuts social media">
+      <p>Follow JP</p>
+      <SocialLinks content={content} label={null} />
     </section>
   )
 }
@@ -134,12 +146,6 @@ function Availability({ content, feedbackPreview }) {
       <header>
         <p className="chair-kicker">Locations & availability</p>
         <h2 id="chair-availability-heading">{feedbackPreview ? 'Where?' : 'Where JP cuts'}</h2>
-        {feedbackPreview && (
-          <div className="chair-availability-socials" aria-label="JP Cuts social media">
-            <p>Follow JP</p>
-            <SocialLinks content={content} label={null} />
-          </div>
-        )}
       </header>
       <div className="chair-location-grid">
         <article>

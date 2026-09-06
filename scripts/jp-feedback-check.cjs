@@ -24,7 +24,7 @@ async function inspect(page) {
     const root = document.querySelector('.chair-site')
     const hero = document.querySelector('.chair-hero')
     const eventsHero = document.querySelector('.chair-events-hero')
-    const social = document.querySelector('.chair-availability-socials')
+    const social = document.querySelector('.chair-social-strip')
     const availability = document.querySelector('.chair-availability')
     const pairs = [...document.querySelectorAll('.chair-section-heading, .chair-about-copy, .chair-events-heading')].map((node) => {
       const first = node.querySelector('.chair-pair-primary')
@@ -57,14 +57,31 @@ async function inspect(page) {
       socialCount: social?.querySelectorAll('a').length,
       socialLabels: [...(social?.querySelectorAll('a') || [])].map((node) => node.getAttribute('aria-label')),
       socialHrefs: [...(social?.querySelectorAll('a') || [])].map((node) => node.href),
-      socialWithinAvailability: social?.closest('.chair-availability') === availability,
-      socialWithinHeading: social?.parentElement === availability?.querySelector('header'),
+      socialBeforeAvailability: Boolean(social && availability && (social.compareDocumentPosition(availability) & Node.DOCUMENT_POSITION_FOLLOWING)),
+      socialOutsideAvailability: social?.closest('.chair-availability') === null,
+      socialImmediatelyAfterHero: hero?.nextElementSibling === social,
       availabilityHeading: document.querySelector('#chair-availability-heading')?.textContent.trim(),
       verseFont: getComputedStyle(document.querySelector('.chair-about blockquote')).fontFamily,
       verseStyle: getComputedStyle(document.querySelector('.chair-about blockquote')).fontStyle,
       mobileBarVisible: (() => {
         const node = document.querySelector('.chair-mobile-book')
         return Boolean(node && getComputedStyle(node).display !== 'none')
+      })(),
+      mobileBar: (() => {
+        const node = document.querySelector('.chair-mobile-book')
+        const box = node?.getBoundingClientRect()
+        return node && box && getComputedStyle(node).display !== 'none' ? {
+          text: node.textContent.replace(/\s+/g, ' ').trim(),
+          href: node.href,
+          bottom: Math.round(box.bottom),
+          height: Math.round(box.height),
+          position: getComputedStyle(node).position,
+          markVisible: (() => {
+            const mark = node.querySelector('.chair-mobile-book-mark img')
+            const markBox = mark?.getBoundingClientRect()
+            return Boolean(markBox && markBox.width > 0 && markBox.height > 0)
+          })(),
+        } : null
       })(),
       headerBrandVisible: (() => {
         const node = document.querySelector('.chair-header .chair-brand')
@@ -96,6 +113,21 @@ async function inspect(page) {
   })
 }
 
+async function inspectStickyBooking(page) {
+  return page.evaluate(() => {
+    const booking = document.querySelector('.chair-mobile-book')
+    const footer = document.querySelector('.chair-footer')
+    const bookingBox = booking?.getBoundingClientRect()
+    const footerBox = footer?.getBoundingClientRect()
+    return booking && bookingBox && getComputedStyle(booking).display !== 'none' ? {
+      bottom: Math.round(bookingBox.bottom),
+      top: Math.round(bookingBox.top),
+      position: getComputedStyle(booking).position,
+      footerBottom: footerBox ? Math.round(footerBox.bottom) : null,
+    } : null
+  })
+}
+
 async function main() {
   fs.mkdirSync(outputDir, { recursive: true })
   const { defaultContent } = await import('../src/siteContent.js')
@@ -118,6 +150,28 @@ async function main() {
       await page.locator('.chair-events-hero > img').evaluate((image) => image.decode())
       await page.waitForTimeout(350)
       const metrics = await inspect(page)
+      if (viewport.width < 960) {
+        await page.locator('.chair-mobile-book').focus()
+        metrics.mobileBarFocus = await page.locator('.chair-mobile-book').evaluate((node) => ({
+          color: getComputedStyle(node).outlineColor,
+          offset: Number.parseFloat(getComputedStyle(node).outlineOffset),
+          style: getComputedStyle(node).outlineStyle,
+          width: Number.parseFloat(getComputedStyle(node).outlineWidth),
+        }))
+        await page.locator('.chair-social-strip .chair-socials a').first().focus()
+        metrics.socialFocus = await page.locator('.chair-social-strip .chair-socials a').first().evaluate((node) => ({
+          color: getComputedStyle(node).outlineColor,
+          style: getComputedStyle(node).outlineStyle,
+          width: Number.parseFloat(getComputedStyle(node).outlineWidth),
+        }))
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2))
+        await page.waitForTimeout(50)
+        metrics.mobileBarMidScroll = await inspectStickyBooking(page)
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+        await page.waitForTimeout(50)
+        metrics.mobileBarPageEnd = await inspectStickyBooking(page)
+        await page.evaluate(() => window.scrollTo(0, 0))
+      }
       const screenshot = path.join(outputDir, `${viewport.name}-full.png`)
       const heroScreenshot = path.join(outputDir, `${viewport.name}-hero.png`)
       await page.screenshot({ path: screenshot, fullPage: true })
@@ -129,30 +183,52 @@ async function main() {
     await browser.close()
   }
 
-  const failures = report.filter(({ status, metrics }) =>
+  const failures = report.filter(({ status, viewport, metrics }) =>
     status !== 200
     || !metrics.previewClass
     || metrics.scrollWidth > metrics.width + 1
     || !metrics.heroLogoVisible
-    || metrics.heroOfferCount !== 1
-    || metrics.heroAddonCount !== 1
-    || metrics.heroOfferLine !== '$35 Haircut · 35 minutes'
-    || metrics.heroOfferChildCount !== 1
+    || metrics.heroOfferCount !== 0
+    || metrics.heroAddonCount !== 0
+    || metrics.heroOfferLine !== undefined
+    || metrics.heroOfferChildCount !== undefined
     || !metrics.heroText.includes('PROFESSIONAL BARBER')
     || !metrics.heroText.includes('Create. Connect. Collaborate.')
-    || !metrics.heroText.includes('$35 Haircut · 35 minutes')
+    || metrics.heroText.includes('$35')
+    || metrics.heroText.includes('35 minutes')
+    || metrics.heroText.includes('Optional')
     || metrics.heroBookText !== 'BOOK NOW'
     || metrics.heroBookHref !== 'https://calendly.com/jpcuts/30mins'
     || metrics.socialCount !== 4
     || metrics.socialLabels.join('|') !== 'Instagram|Facebook|TikTok|YouTube'
     || metrics.socialHrefs.join('|') !== expectedSocialHrefs.join('|')
-    || !metrics.socialWithinAvailability
-    || !metrics.socialWithinHeading
+    || !metrics.socialBeforeAvailability
+    || !metrics.socialOutsideAvailability
+    || !metrics.socialImmediatelyAfterHero
     || metrics.availabilityHeading !== 'Where?'
     || !metrics.verseFont.includes('Inter')
     || metrics.verseFont.includes('Georgia')
     || metrics.verseStyle !== 'normal'
-    || metrics.mobileBarVisible
+    || (metrics.width < 960 && (!metrics.mobileBarVisible
+      || metrics.mobileBar?.text !== 'BOOK NOW'
+      || metrics.mobileBar?.href !== 'https://calendly.com/jpcuts/30mins'
+      || metrics.mobileBar?.bottom !== viewport.height
+      || metrics.mobileBar?.height < 68
+      || metrics.mobileBar?.position !== 'fixed'
+      || !metrics.mobileBar?.markVisible
+      || metrics.mobileBarFocus?.color !== 'rgb(17, 19, 15)'
+      || metrics.mobileBarFocus?.offset >= 0
+      || metrics.mobileBarFocus?.style !== 'solid'
+      || metrics.mobileBarFocus?.width < 3
+      || metrics.socialFocus?.color !== 'rgb(17, 19, 15)'
+      || metrics.socialFocus?.style !== 'solid'
+      || metrics.socialFocus?.width < 3
+      || metrics.mobileBarMidScroll?.bottom !== viewport.height
+      || metrics.mobileBarMidScroll?.position !== 'fixed'
+      || metrics.mobileBarPageEnd?.bottom !== viewport.height
+      || metrics.mobileBarPageEnd?.position !== 'fixed'
+      || metrics.mobileBarPageEnd?.footerBottom > metrics.mobileBarPageEnd?.top + 1))
+    || (metrics.width >= 960 && metrics.mobileBarVisible)
     || (metrics.width >= 960 && (metrics.headerBrandVisible || metrics.headerBookVisible))
     || !metrics.servicePriceVisible
     || metrics.eventsHero?.count !== 1
