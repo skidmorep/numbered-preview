@@ -598,7 +598,7 @@
   line-height: .94;
 }
 
-.chair-about-copy > p:not(.chair-outline-label):not(.chair-location),
+.chair-about-copy > p:not(.chair-outline-label):not(.chair-location):not(.chair-pair-secondary),
 .chair-events-copy > p:not(.chair-outline-label),
 .chair-bio-copy p {
   max-width: 58ch;

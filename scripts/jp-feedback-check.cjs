@@ -61,6 +61,7 @@ async function inspect(page) {
       socialOutsideAvailability: social?.closest('.chair-availability') === null,
       socialImmediatelyAfterHero: hero?.nextElementSibling === social,
       availabilityHeading: document.querySelector('#chair-availability-heading')?.textContent.trim(),
+      aboutSubtitleFontSize: Number.parseFloat(getComputedStyle(document.querySelector('.chair-about .chair-pair-secondary')).fontSize),
       verseFont: getComputedStyle(document.querySelector('.chair-about blockquote')).fontFamily,
       verseStyle: getComputedStyle(document.querySelector('.chair-about blockquote')).fontStyle,
       mobileBarVisible: (() => {
@@ -206,6 +207,7 @@ async function main() {
     || !metrics.socialOutsideAvailability
     || !metrics.socialImmediatelyAfterHero
     || metrics.availabilityHeading !== 'Where?'
+    || metrics.aboutSubtitleFontSize < (metrics.width < 960 ? 40 : 50)
     || !metrics.verseFont.includes('Inter')
     || metrics.verseFont.includes('Georgia')
     || metrics.verseStyle !== 'normal'
