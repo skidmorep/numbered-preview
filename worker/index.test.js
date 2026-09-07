@@ -292,9 +292,24 @@ test('unauthenticated visitors receive only the login shell while APIs and media
     assert.match(html, /Private preview/)
     assert.match(html, /Sign in with your email address and password/)
     assert.match(html, /<form[^>]+action="\/login\/"/)
+    assert.match(html, /href="\/favicon-jp-20260906-32\.png"/)
+    assert.match(html, /href="\/favicon-jp-20260906-512\.png"/)
+    assert.match(html, /href="\/favicon-jp-20260906-180\.png"/)
     assert.match(html, new RegExp(`name="next" type="hidden" value="${path === '/admin/' ? '/admin/' : '/'}"`))
     assert.doesNotMatch(html, /email.{0,20}(?:OTP|code)/i)
     assert.deepEqual(bindings.calls, { assets: 0, db: 0, media: 0 })
+  }
+
+  for (const path of [
+    '/favicon-jp-20260906-32.png',
+    '/favicon-jp-20260906-180.png',
+    '/favicon-jp-20260906-512.png',
+  ]) {
+    const bindings = untouchedBindings()
+    const response = await handleRequest(new Request(`https://numbered.test${path}`), bindings.env)
+    assert.equal(response.status, 200)
+    assert.equal(await response.text(), 'site')
+    assert.deepEqual(bindings.calls, { assets: 1, db: 0, media: 0 })
   }
 
   for (const path of ['/api/content', '/uploads/11111111-1111-1111-1111-111111111111.jpg']) {

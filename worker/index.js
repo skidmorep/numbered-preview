@@ -16,6 +16,11 @@ const CONTACT_WINDOW_MS = 60 * 60 * 1000
 const CONTACT_COOLDOWN_MS = 30 * 1000
 const MAX_CONTACT_EMAIL_REQUESTS = 3
 const MAX_CONTACT_IP_REQUESTS = 5
+const PUBLIC_FAVICON_PATHS = new Set([
+  '/favicon-jp-20260906-32.png',
+  '/favicon-jp-20260906-180.png',
+  '/favicon-jp-20260906-512.png',
+])
 const MAX_CONTENT_BYTES = 80_000
 const MAX_IMAGE_BYTES = 6 * 1024 * 1024
 const MAX_VIDEO_BYTES = 15 * 1024 * 1024
@@ -74,6 +79,12 @@ export async function handleRequest(request, env, context) {
       if (!publicSite) await requireSession(request, env)
       else if (!(await isPublishedMediaKey(env, key))) return finish(json({ error: 'Not found' }, 404))
       return finish(await serveMedia(request, env, key))
+    }
+
+    if ((request.method === 'GET' || request.method === 'HEAD') && PUBLIC_FAVICON_PATHS.has(url.pathname)) {
+      const faviconRequest = new Request(request)
+      faviconRequest.headers.delete('authorization')
+      return finish(await env.ASSETS.fetch(faviconRequest))
     }
 
     if (!publicSite || isAdminPath(url.pathname)) {
@@ -921,7 +932,7 @@ function authPage({ eyebrow, title, intro, action = '', fields = '', error = '',
   const noticeBlock = notice ? `<p class="notice" role="status">${escapeHtml(notice)}</p>` : ''
   const actionBlock = action ? `<button type="submit">${escapeHtml(action)}</button>` : ''
   return new Response(`<!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} — JP Cuts</title>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-jp-20260906-32.png"><link rel="icon" type="image/png" sizes="512x512" href="/favicon-jp-20260906-512.png"><link rel="apple-touch-icon" sizes="180x180" href="/favicon-jp-20260906-180.png"><title>${escapeHtml(title)} — JP Cuts</title>
 <style>:root{color-scheme:light}*{box-sizing:border-box}body{min-height:100svh;margin:0;display:grid;place-items:center;padding:22px;background:#eee8dd;color:#171513;font-family:Inter,ui-sans-serif,system-ui,sans-serif}.shell{width:min(100%,430px)}.brand{display:flex;align-items:center;margin:0 0 22px;color:#c61f27;font-size:1.15rem;font-weight:950;letter-spacing:.04em}.mark{display:block}.card{display:grid;gap:17px;padding:28px;border:1px solid #cec4b7;background:#fffaf2;box-shadow:0 18px 60px rgba(35,26,18,.1)}.eyebrow{margin:0;color:#c61f27;font-size:.7rem;font-weight:900;letter-spacing:.14em;text-transform:uppercase}h1{margin:0;font-size:clamp(2rem,10vw,3rem);line-height:.95}p{margin:0;color:#665c52;line-height:1.5}.field{display:grid;gap:7px;font-size:.875rem;font-weight:800}.field input{width:100%;min-height:48px;padding:11px;border:1px solid #bdb1a4;border-radius:0;background:white;color:#171513;font:inherit}.field input[type=hidden]{display:none}button{min-height:50px;border:0;padding:12px 18px;background:#c61f27;color:white;font:inherit;font-weight:900;cursor:pointer}button:disabled{cursor:not-allowed;opacity:.6}.error,.notice{padding:11px 12px;font-weight:750}.error{border-left:3px solid #c61f27;background:#f8e5e3;color:#7b1015}.notice{border-left:3px solid #31704a;background:#e7f3ea;color:#205235}.footer{font-size:.875rem}.footer a{min-height:44px;display:inline-flex;align-items:center;color:#40372f;font-weight:800}input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #2474c6;outline-offset:3px}@media(max-height:680px){body{place-items:start center}}@media(max-width:420px){body{padding:16px}.card{padding:22px}}</style></head><body><main class="shell"><div class="brand"><span class="mark">JP CUTS</span></div><form class="card" method="post" ${formAttributes}><p class="eyebrow">${escapeHtml(eyebrow)}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(intro)}</p>${errorBlock}${noticeBlock}${fields}${actionBlock}${footer ? `<p class="footer">${footer}</p>` : ''}</form></main>${script}</body></html>`, {
     status,
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'referrer-policy': 'same-origin' },
