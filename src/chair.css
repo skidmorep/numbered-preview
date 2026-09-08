@@ -1108,11 +1108,18 @@
   }
   .chair-header .chair-header-book { display: inline-flex; justify-self: end; min-width: 178px; }
   .is-jp-feedback-preview .chair-header {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(178px, 1fr) auto minmax(178px, 1fr);
   }
-  .is-jp-feedback-preview .chair-header .chair-brand,
-  .is-jp-feedback-preview .chair-header .chair-header-book { display: none; }
-  .is-jp-feedback-preview .chair-header .chair-desktop-nav { justify-self: center; }
+  .is-jp-feedback-preview .chair-header .chair-brand { display: none; }
+  .is-jp-feedback-preview .chair-header .chair-desktop-nav {
+    grid-column: 2;
+    justify-self: center;
+  }
+  .is-jp-feedback-preview .chair-header .chair-header-book {
+    grid-column: 3;
+    display: inline-flex;
+    justify-self: end;
+  }
   .chair-menu-trigger,
   .chair-mobile-menu,
   .chair-mobile-book { display: none; }

@@ -92,6 +92,16 @@ async function inspect(page) {
         const node = document.querySelector('.chair-header .chair-header-book')
         return Boolean(node && getComputedStyle(node).display !== 'none')
       })(),
+      headerBook: (() => {
+        const node = document.querySelector('.chair-header .chair-header-book')
+        const box = node?.getBoundingClientRect()
+        return node && box && getComputedStyle(node).display !== 'none' ? {
+          text: node.textContent.trim(),
+          href: node.href,
+          height: Math.round(box.height),
+          right: Math.round(box.right),
+        } : null
+      })(),
       servicePriceVisible: [...document.querySelectorAll('.chair-service strong')].some((node) => node.textContent.trim() === '$35'),
       eventsHero: (() => {
         const image = eventsHero?.querySelector('img')
@@ -172,6 +182,35 @@ async function main() {
         await page.waitForTimeout(50)
         metrics.mobileBarPageEnd = await inspectStickyBooking(page)
         await page.evaluate(() => window.scrollTo(0, 0))
+      } else {
+        await page.locator('.chair-header-book').focus()
+        metrics.headerBookFocus = await page.locator('.chair-header-book').evaluate((node) => ({
+          color: getComputedStyle(node).outlineColor,
+          offset: Number.parseFloat(getComputedStyle(node).outlineOffset),
+          style: getComputedStyle(node).outlineStyle,
+          width: Number.parseFloat(getComputedStyle(node).outlineWidth),
+        }))
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2))
+        await page.waitForTimeout(50)
+        metrics.desktopHeaderMidScroll = await page.evaluate(() => {
+          const header = document.querySelector('.chair-header')?.getBoundingClientRect()
+          const book = document.querySelector('.chair-header-book')?.getBoundingClientRect()
+          return {
+            headerTop: header ? Math.round(header.top) : null,
+            bookVisible: Boolean(book && book.width > 0 && book.height > 0 && book.top >= 0 && book.bottom <= innerHeight),
+          }
+        })
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+        await page.waitForTimeout(50)
+        metrics.desktopHeaderPageEnd = await page.evaluate(() => {
+          const header = document.querySelector('.chair-header')?.getBoundingClientRect()
+          const book = document.querySelector('.chair-header-book')?.getBoundingClientRect()
+          return {
+            headerTop: header ? Math.round(header.top) : null,
+            bookVisible: Boolean(book && book.width > 0 && book.height > 0 && book.top >= 0 && book.bottom <= innerHeight),
+          }
+        })
+        await page.evaluate(() => window.scrollTo(0, 0))
       }
       const screenshot = path.join(outputDir, `${viewport.name}-full.png`)
       const heroScreenshot = path.join(outputDir, `${viewport.name}-hero.png`)
@@ -231,7 +270,18 @@ async function main() {
       || metrics.mobileBarPageEnd?.position !== 'fixed'
       || metrics.mobileBarPageEnd?.footerBottom > metrics.mobileBarPageEnd?.top + 1))
     || (metrics.width >= 960 && metrics.mobileBarVisible)
-    || (metrics.width >= 960 && (metrics.headerBrandVisible || metrics.headerBookVisible))
+    || (metrics.width >= 960 && (metrics.headerBrandVisible
+      || !metrics.headerBookVisible
+      || metrics.headerBook?.text !== 'BOOK NOW'
+      || metrics.headerBook?.href !== 'https://calendly.com/jpcuts/30mins'
+      || metrics.headerBook?.height < 44
+      || metrics.headerBook?.right > viewport.width
+      || metrics.headerBookFocus?.style !== 'solid'
+      || metrics.headerBookFocus?.width < 3
+      || metrics.desktopHeaderMidScroll?.headerTop !== 0
+      || !metrics.desktopHeaderMidScroll?.bookVisible
+      || metrics.desktopHeaderPageEnd?.headerTop !== 0
+      || !metrics.desktopHeaderPageEnd?.bookVisible))
     || !metrics.servicePriceVisible
     || metrics.eventsHero?.count !== 1
     || metrics.eventsHero?.src !== '/media/defaults/jp-event-setup-hero.webp'
